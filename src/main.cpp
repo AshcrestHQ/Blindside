@@ -1,5 +1,6 @@
 #include "blindside/daemon.hpp"
 #include "blindside/config.hpp"
+#include "blindside/tray_icon.hpp"
 #include <iostream>
 #include <string>
 #include <csignal>
@@ -21,12 +22,13 @@ void print_usage(const char* prog_name) {
     std::cout << "Usage: " << prog_name << " [options]\n"
               << "Options:\n"
               << "  --daemon               Run continuously in desktop background mode\n"
+              << "  --mode <mode>          Set operational mode: graceful (targeted blur), strict (full lock), pause (default: graceful)\n"
               << "  --calibrate            Calibrate primary user baseline face position on launch\n"
               << "  --synthetic            Run in synthetic headless test mode (no physical camera required)\n"
               << "  --trigger-mode <mode>  Set trigger action: soft, hard, both, log (default: both)\n"
               << "  --fps-active <fps>     Set active monitoring FPS (default: 30)\n"
               << "  --fps-idle <fps>       Set low-power idle FPS (default: 5)\n"
-              << "  --hysteresis <sec>     Secondary gaze duration required for hard lock (default: 1.0)\n"
+              << "  --hysteresis <sec>     Secondary gaze duration required for lock/blur (default: 1.0)\n"
               << "  --help                 Display this help message\n";
 }
 
@@ -43,6 +45,11 @@ int main(int argc, char* argv[]) {
         std::string arg = argv[i];
         if (arg == "--daemon") {
             run_daemon = true;
+        } else if (arg == "--mode" && i + 1 < argc) {
+            std::string mode_str = argv[++i];
+            if (mode_str == "strict") config.daemon_state = blindside::DaemonState::StrictFullLock;
+            else if (mode_str == "pause") config.daemon_state = blindside::DaemonState::PauseDetection;
+            else config.daemon_state = blindside::DaemonState::GracefulTargetedBlur;
         } else if (arg == "--calibrate") {
             run_calibration = true;
         } else if (arg == "--synthetic") {
@@ -66,9 +73,10 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "========================================================\n"
-              << "  🛡️ BLINDSIDE: Physical Privacy & Visual Eavesdropper Daemon\n"
+              << "  🛡️ BLINDSIDE: Physical Privacy & Visual Eavesdropper Daemon (Phase 2)\n"
               << "========================================================\n"
-              << "Active FPS: " << config.active_fps 
+              << "Mode: " << blindside::SystemTrayController::get_mode_name(config.daemon_state)
+              << " | Active FPS: " << config.active_fps 
               << " | Idle FPS: " << config.idle_fps 
               << " | Hysteresis: " << config.hysteresis_sec << "s\n";
 
@@ -97,13 +105,13 @@ int main(int argc, char* argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
     } else {
-        // Run test cycle
+        // Run diagnostic verification cycle
         std::cout << "[Blindside CLI] Running diagnostic verification cycle..." << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(2));
 
         if (synthetic_mode) {
-            std::cout << "\n[Blindside CLI] Injecting synthetic shoulder surfer event..." << std::endl;
-            daemon.inject_synthetic_eavesdropper(true, 0.0); // Gaze directed at screen
+            std::cout << "\n[Blindside CLI] Injecting synthetic live shoulder surfer event..." << std::endl;
+            daemon.inject_synthetic_eavesdropper(true, 0.0);
             std::this_thread::sleep_for(std::chrono::milliseconds(1500));
         }
     }

@@ -13,6 +13,12 @@ enum class TriggerMode {
     LogOnly
 };
 
+enum class DaemonState {
+    StrictFullLock,        // Immediate full OS screen lock on secondary gaze > 1s
+    GracefulTargetedBlur,  // Targeted dynamic blur/overlay over active workspace window
+    PauseDetection         // Monitoring paused by user
+};
+
 struct Config {
     // Frame sampling rates (Hz)
     double active_fps = 30.0;
@@ -30,6 +36,11 @@ struct Config {
     double max_allowed_pitch_deg = 25.0; // Pitch angle relative to screen center
     double hysteresis_sec = 1.0;         // Secondary gaze must persist > 1s for Hard Defense
 
+    // Liveness & Anti-Spoofing Parameters
+    float ear_blink_threshold = 0.20f;              // Eye Aspect Ratio drop threshold for blink
+    double liveness_window_sec = 3.0;               // Time window to verify micro-motion/blink
+    float micro_pose_variance_threshold = 0.80f;     // Pitch/Yaw variance threshold for live face vs photo
+
     // Primary User Calibration Box (normalized [0, 1])
     float primary_x_center = 0.5f;
     float primary_y_center = 0.5f;
@@ -37,6 +48,7 @@ struct Config {
 
     // Trigger behavior
     TriggerMode trigger_mode = TriggerMode::Both;
+    DaemonState daemon_state = DaemonState::GracefulTargetedBlur;
     bool enable_screen_lock = true;
     bool enable_blur_overlay = true;
     bool enable_sound_alert = false;

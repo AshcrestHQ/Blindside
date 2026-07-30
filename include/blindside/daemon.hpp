@@ -8,6 +8,7 @@
 #include "blindside/pose_estimator.hpp"
 #include "blindside/eavesdropper_detector.hpp"
 #include "blindside/privacy_trigger.hpp"
+#include "blindside/tray_icon.hpp"
 
 #include <thread>
 #include <atomic>
@@ -41,6 +42,18 @@ public:
      */
     bool calibrate_primary_user();
 
+    /**
+     * @brief Lock-free update of daemon state (Strict, Graceful, Pause).
+     */
+    void set_daemon_state(DaemonState state) {
+        atomic_state_.store(state, std::memory_order_release);
+        config_.daemon_state = state;
+    }
+
+    DaemonState get_daemon_state() const {
+        return atomic_state_.load(std::memory_order_acquire);
+    }
+
     bool is_running() const { return running_.load(); }
     double get_current_fps() const { return current_target_fps_.load(); }
     uint64_t get_processed_frame_count() const { return processed_frames_.load(); }
@@ -69,6 +82,7 @@ private:
     std::atomic<bool> running_{false};
     std::atomic<double> current_target_fps_{30.0};
     std::atomic<uint64_t> processed_frames_{0};
+    std::atomic<DaemonState> atomic_state_{DaemonState::GracefulTargetedBlur};
 
     std::chrono::system_clock::time_point last_secondary_activity_time_;
 

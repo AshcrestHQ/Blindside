@@ -21,6 +21,11 @@ public:
     HeadPose estimate_pose(const FaceBox& face, const RawFrame& frame);
 
     /**
+     * @brief Calculates Eye Aspect Ratio (EAR) for blink & liveness detection.
+     */
+    static float compute_ear(const FaceBox& face);
+
+    /**
      * @brief Computes 3D gaze vector from pitch and yaw angles (in degrees).
      */
     static Point3f compute_gaze_vector(double pitch_deg, double yaw_deg);

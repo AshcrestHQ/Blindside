@@ -1,6 +1,7 @@
 #include "blindside/eavesdropper_detector.hpp"
 #include <iostream>
 #include <cmath>
+#include <numeric>
 
 namespace blindside {
 
@@ -57,6 +58,76 @@ bool EavesdropperDetector::calibrate(const RawFrame& frame) {
 
 void EavesdropperDetector::reset_state() {
     secondary_gaze_active_ = false;
+    history_count_ = 0;
+    history_head_ = 0;
+}
+
+bool EavesdropperDetector::evaluate_liveness(double current_pitch, double current_yaw, float current_ear, bool& is_spoof_photo) {
+    auto now = std::chrono::system_clock::now();
+
+    // Push new sample into zero-allocation rolling buffer
+    pose_history_[history_head_] = {now, current_pitch, current_yaw, current_ear, true};
+    history_head_ = (history_head_ + 1) % HISTORY_CAPACITY;
+    if (history_count_ < HISTORY_CAPACITY) history_count_++;
+
+    if (history_count_ < 4) {
+        is_spoof_photo = false;
+        return true; // Default to live threat until enough samples gathered
+    }
+
+    // Calculate variance of pitch, yaw, and min EAR over last 3 seconds
+    double mean_pitch = 0.0;
+    double mean_yaw = 0.0;
+    float min_ear = 1.0f;
+    size_t valid_samples = 0;
+
+    for (size_t i = 0; i < history_count_; ++i) {
+        const auto& s = pose_history_[i];
+        if (!s.valid) continue;
+        std::chrono::duration<double> dt = now - s.timestamp;
+        if (dt.count() <= config_.liveness_window_sec) {
+            mean_pitch += s.pitch;
+            mean_yaw += s.yaw;
+            if (s.ear < min_ear) min_ear = s.ear;
+            valid_samples++;
+        }
+    }
+
+    if (valid_samples < 3) {
+        is_spoof_photo = false;
+        return true;
+    }
+
+    mean_pitch /= valid_samples;
+    mean_yaw /= valid_samples;
+
+    double var_pitch = 0.0;
+    double var_yaw = 0.0;
+
+    for (size_t i = 0; i < history_count_; ++i) {
+        const auto& s = pose_history_[i];
+        if (!s.valid) continue;
+        std::chrono::duration<double> dt = now - s.timestamp;
+        if (dt.count() <= config_.liveness_window_sec) {
+            var_pitch += (s.pitch - mean_pitch) * (s.pitch - mean_pitch);
+            var_yaw += (s.yaw - mean_yaw) * (s.yaw - mean_yaw);
+        }
+    }
+
+    var_pitch /= valid_samples;
+    var_yaw /= valid_samples;
+
+    double total_variance = var_pitch + var_yaw;
+
+    // Anti-Spoofing Rules:
+    // If total variance is near zero AND eye aspect ratio exhibits no blink variation -> Static Photo / Spoof
+    if (total_variance < 0.02 && min_ear > config_.ear_blink_threshold) {
+        is_spoof_photo = true;
+        return false;
+    }
+
+    is_spoof_photo = false;
+    return true;
 }
 
 FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
@@ -76,11 +147,13 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
     float cal_cy = primary_calibration_box_.center_y();
 
     bool found_secondary_gaze = false;
+    bool secondary_liveness_pass = false;
 
     for (const auto& raw_face : raw_faces) {
         FaceDetectionResult face_res;
         face_res.box = raw_face;
         face_res.pose = pose_estimator_.estimate_pose(raw_face, frame);
+        face_res.ear = PoseEstimator::compute_ear(raw_face);
 
         float norm_cx = raw_face.center_x() / norm_w;
         float norm_cy = raw_face.center_y() / norm_h;
@@ -95,16 +168,24 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
             face_res.is_eavesdropper = true;
             if (face_res.pose.is_looking_at_screen) {
                 found_secondary_gaze = true;
+                bool is_spoof = false;
+                bool is_live = evaluate_liveness(face_res.pose.pitch_deg, face_res.pose.yaw_deg, face_res.ear, is_spoof);
+                face_res.is_live_threat = is_live;
+                face_res.is_spoof_static = is_spoof;
+                if (is_live && !is_spoof) {
+                    secondary_liveness_pass = true;
+                }
             }
         }
         result.faces.push_back(face_res);
     }
 
     result.secondary_gaze_detected = found_secondary_gaze;
+    result.secondary_liveness_verified = secondary_liveness_pass;
 
-    // Temporal Hysteresis Filter (> 1.0 second threshold)
+    // Hysteresis Filter (> 1.0 second threshold)
     auto now = std::chrono::system_clock::now();
-    if (found_secondary_gaze) {
+    if (found_secondary_gaze && secondary_liveness_pass) {
         if (!secondary_gaze_active_) {
             secondary_gaze_active_ = true;
             secondary_gaze_start_time_ = now;
@@ -116,7 +197,11 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
 
         result.trigger_soft_alert = true;
         if (result.secondary_gaze_duration_sec >= config_.hysteresis_sec) {
-            result.trigger_hard_defense = true;
+            if (config_.daemon_state == DaemonState::StrictFullLock) {
+                result.trigger_hard_defense = true;
+            } else if (config_.daemon_state == DaemonState::GracefulTargetedBlur) {
+                result.trigger_targeted_blur = true;
+            }
         }
     } else {
         reset_state();

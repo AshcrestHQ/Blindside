@@ -1,6 +1,7 @@
 #ifndef BLINDSIDE_TYPES_HPP
 #define BLINDSIDE_TYPES_HPP
 
+#include "blindside/config.hpp"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -17,6 +18,14 @@ struct Point3f {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
+};
+
+struct WindowRect {
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    bool valid = false;
 };
 
 struct FaceBox {
@@ -45,19 +54,26 @@ struct HeadPose {
 struct FaceDetectionResult {
     FaceBox box;
     HeadPose pose;
+    float ear = 0.30f;              // Eye Aspect Ratio
     bool is_primary_user = false;
     bool is_eavesdropper = false;
+    bool is_live_threat = false;     // Passes Liveness micro-motion check
+    bool is_spoof_static = false;    // Static photo / 0 variance detected
 };
 
 struct FrameResult {
     uint64_t frame_id = 0;
     std::chrono::system_clock::time_point timestamp;
+    DaemonState daemon_state = DaemonState::GracefulTargetedBlur;
     bool primary_user_present = false;
     std::vector<FaceDetectionResult> faces;
     bool secondary_gaze_detected = false;
+    bool secondary_liveness_verified = false;
     double secondary_gaze_duration_sec = 0.0;
     bool trigger_soft_alert = false;
     bool trigger_hard_defense = false;
+    bool trigger_targeted_blur = false;
+    WindowRect active_window_rect;
 };
 
 } // namespace blindside

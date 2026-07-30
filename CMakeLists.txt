@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(blindside VERSION 1.0.0 LANGUAGES CXX)
+project(blindside VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,7 +39,7 @@ if(ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIBRARY)
     include_directories(${ONNXRUNTIME_INCLUDE_DIR})
 endif()
 
-# Platform specific libraries
+# Platform specific UI & OS libraries
 set(PLATFORM_LIBS Threads::Threads)
 
 if(UNIX AND NOT APPLE)
@@ -51,7 +51,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(WIN32)
-    list(APPEND PLATFORM_LIBS User32.lib Gdi32.lib)
+    list(APPEND PLATFORM_LIBS User32.lib Gdi32.lib Dwmapi.lib Comctl32.lib)
 endif()
 
 if(OpenCV_FOUND)
@@ -92,3 +92,7 @@ add_test(NAME test_gaze_math COMMAND test_gaze_math)
 add_executable(test_eavesdropper tests/test_eavesdropper.cpp)
 target_link_libraries(test_eavesdropper PRIVATE blindside_lib)
 add_test(NAME test_eavesdropper COMMAND test_eavesdropper)
+
+add_executable(test_liveness tests/test_liveness.cpp)
+target_link_libraries(test_liveness PRIVATE blindside_lib)
+add_test(NAME test_liveness COMMAND test_liveness)

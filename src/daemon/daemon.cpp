@@ -10,7 +10,8 @@ Daemon::Daemon(const Config& config)
       face_detector_(config),
       pose_estimator_(config),
       eavesdropper_detector_(config, face_detector_, pose_estimator_),
-      privacy_trigger_(config) {
+      privacy_trigger_(config),
+      atomic_state_(config.daemon_state) {
 }
 
 Daemon::~Daemon() {
@@ -49,7 +50,7 @@ void Daemon::start() {
     if (running_.load()) return;
     running_.store(true);
 
-    std::cout << "[Daemon] Starting Blindside background threads (std::jthread)..." << std::endl;
+    std::cout << "[Daemon] Starting Blindside Phase 2 background daemon (std::jthread)..." << std::endl;
 
     capture_thread_ = std::jthread([this](std::stop_token st) { capture_loop(st); });
     worker_thread_  = std::jthread([this](std::stop_token st) { worker_loop(st); });
@@ -83,11 +84,20 @@ void Daemon::worker_loop(std::stop_token stop_token) {
         auto opt_frame = frame_buffer_.wait_pop_for(std::chrono::milliseconds(200));
         if (!opt_frame.has_value()) continue;
 
+        DaemonState current_state = atomic_state_.load(std::memory_order_acquire);
+        if (current_state == DaemonState::PauseDetection) {
+            privacy_trigger_.clear_alerts();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
+        config_.daemon_state = current_state;
         const RawFrame& frame = opt_frame.value();
         FrameResult result = eavesdropper_detector_.process_frame(frame);
+        result.daemon_state = current_state;
         processed_frames_++;
 
-        // Execute OS Privacy Triggers
+        // Execute OS Privacy Triggers (Targeted Blur or Full Workstation Lock)
         privacy_trigger_.execute_triggers(result);
 
         // Adaptive Sampling Rate State Machine (30 FPS active -> 5 FPS idle)
