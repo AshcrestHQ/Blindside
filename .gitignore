@@ -1,0 +1,34 @@
+# Build directory
+build/
+bin/
+lib/
+out/
+
+# Log files
+*.log
+blindside_threats.log
+
+# C++ object files and binaries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.dylib
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln
+*.vcxproj*
+
+# CMake user files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+ctest.log
