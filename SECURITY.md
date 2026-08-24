@@ -6,11 +6,11 @@ The **Blindside** engineering team treats physical and visual privacy as critica
 
 ## 🔒 Supported Versions
 
-Only the latest release and the `master` branch receive active security patches and threat updates.
+Only the latest release and the `main` branch receive active security patches and threat updates.
 
 | Version | Supported | Security Maintenance Level |
 | :--- | :--- | :--- |
-| `2.0.x` (`master`) | ✅ **Yes** | Active Security & Feature Maintenance |
+| `2.0.x` (`main`) | ✅ **Yes** | Active Security & Feature Maintenance |
 | `1.x` | ❌ No | End of Life (Upgrade to 2.0+) |
 
 ---
