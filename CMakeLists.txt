@@ -47,6 +47,7 @@ if(UNIX AND NOT APPLE)
     if(X11_FOUND)
         include_directories(${X11_INCLUDE_DIR})
         list(APPEND PLATFORM_LIBS ${X11_LIBRARIES})
+        add_compile_definitions(HAVE_X11)
     endif()
 endif()
 

@@ -1,0 +1,54 @@
+name: 💡 Feature Request
+description: Suggest a new feature, platform port (e.g. Wayland / macOS), or vision optimization.
+title: "[FEAT]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggesting an enhancement for Blindside? Tell us about your use case and vision!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: Is your feature request related to a problem or specific hardware setup?
+      placeholder: Describe what you are trying to accomplish...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see added to Blindside.
+      placeholder: Describe the feature, CLI flag, or architectural change...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or features you've considered.
+
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Feature Domain
+      options:
+        - Vision Engine & ONNX Models
+        - Display Redaction & Window Blur Overlays
+        - OS System Locks & Triggers
+        - Platform Porting (Wayland / macOS / DirectML)
+        - Performance & Memory Optimization
+        - Documentation / Testing
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: willing_to_pr
+    attributes:
+      label: Contribution Interest
+      options:
+        - label: I would be willing to submit a Pull Request for this feature!

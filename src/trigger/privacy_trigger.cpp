@@ -7,16 +7,19 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include <dwmapi.h>
-#elif defined(__linux__)
+#elif defined(__linux__) && defined(HAVE_X11) && __has_include(<X11/Xlib.h>)
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <unistd.h>
+#define BLINDSIDE_HAS_X11 1
+#elif defined(__linux__)
 #include <unistd.h>
 #endif
 
 namespace blindside {
 
 struct PrivacyTriggerManager::PlatformImpl {
-#if defined(__linux__)
+#if defined(BLINDSIDE_HAS_X11)
     Display* display = nullptr;
     Window overlay_win = 0;
 #elif defined(_WIN32)
@@ -41,7 +44,7 @@ bool PrivacyTriggerManager::initialize() {
         std::cout << "[PrivacyTrigger] Threat log opened at " << config_.log_file_path << std::endl;
     }
 
-#if defined(__linux__)
+#if defined(BLINDSIDE_HAS_X11)
     platform_impl_->display = XOpenDisplay(nullptr);
     if (platform_impl_->display) {
         std::cout << "[PrivacyTrigger] Native X11 display connection established for targeted window hooks." << std::endl;
@@ -65,7 +68,7 @@ WindowRect PrivacyTriggerManager::get_active_window_geometry() {
             rect.valid = true;
         }
     }
-#elif defined(__linux__)
+#elif defined(BLINDSIDE_HAS_X11)
     if (platform_impl_->display) {
         Window focus_win = 0;
         int revert_to = 0;
@@ -127,7 +130,7 @@ void PrivacyTriggerManager::trigger_targeted_blur(const WindowRect& rect) {
     } else {
         SetWindowPos(platform_impl_->overlay_hwnd, HWND_TOPMOST, rect.x, rect.y, rect.width, rect.height, SWP_SHOWWINDOW);
     }
-#elif defined(__linux__)
+#elif defined(BLINDSIDE_HAS_X11)
     if (platform_impl_->display && platform_impl_->overlay_win == 0) {
         int screen = DefaultScreen(platform_impl_->display);
         Window root = RootWindow(platform_impl_->display, screen);
@@ -157,7 +160,7 @@ void PrivacyTriggerManager::trigger_soft_alert(const std::string& message) {
 
     std::cout << "\033[1;33m[SOFT ALERT] " << message << "\033[0m" << std::endl;
 
-#if defined(__linux__)
+#if defined(BLINDSIDE_HAS_X11)
     int ret = std::system("notify-send -u critical -t 2000 '🛡️ Blindside Privacy Warning' 'Unrecognized face looking at screen!' 2>/dev/null &");
     (void)ret;
 #elif defined(_WIN32)
@@ -195,7 +198,7 @@ void PrivacyTriggerManager::clear_alerts() {
             DestroyWindow(platform_impl_->overlay_hwnd);
             platform_impl_->overlay_hwnd = nullptr;
         }
-#elif defined(__linux__)
+#elif defined(BLINDSIDE_HAS_X11)
         if (platform_impl_->display && platform_impl_->overlay_win != 0) {
             XDestroyWindow(platform_impl_->display, platform_impl_->overlay_win);
             platform_impl_->overlay_win = 0;

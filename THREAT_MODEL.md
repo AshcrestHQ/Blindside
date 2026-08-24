@@ -87,6 +87,11 @@ Blindside maintains an immutable audit log (`blindside_threats.log`) adhering to
 
 ---
 
-## 6. Summary
+## 6. Summary & References
 
 By shifting physical security monitoring directly onto edge C++ runtime hardware, Blindside eliminates the attack vector of shoulder surfing without introducing cloud privacy risks or hardware battery drain.
+
+- **Engineering Benchmarks**: Refer to [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for full test environment telemetry and latency measurements.
+- **Vulnerability Disclosure Policy**: Refer to [SECURITY.md](SECURITY.md) for private reporting procedures.
+- **Contribution Guidelines**: Refer to [CONTRIBUTING.md](CONTRIBUTING.md) for developer standards.
+
