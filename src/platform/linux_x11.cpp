@@ -1,0 +1,126 @@
+#include "blindside/platform.hpp"
+#include <iostream>
+#include <cstdlib>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <unistd.h>
+
+namespace blindside {
+
+class LinuxX11PlatformManager : public PlatformManager {
+public:
+    LinuxX11PlatformManager() = default;
+    
+    ~LinuxX11PlatformManager() {
+        clear_alerts();
+        if (display_) {
+            XCloseDisplay(display_);
+        }
+    }
+
+    bool initialize() override {
+        display_ = XOpenDisplay(nullptr);
+        if (!display_) {
+            std::cerr << "[Platform] Failed to connect to X11 display." << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    PlatformDiagnostics get_diagnostics() const override {
+        PlatformDiagnostics diag;
+        diag.os_name = "Linux (X11)";
+        diag.supports_native_redaction = (display_ != nullptr);
+        diag.supports_screen_lock = true;
+        diag.supports_desktop_notifications = true;
+        
+        if (display_) {
+            diag.monitor_count = ScreenCount(display_);
+        }
+        return diag;
+    }
+
+    WindowRect get_active_window_geometry() override {
+        WindowRect rect;
+        if (display_) {
+            Window focus_win = 0;
+            int revert_to = 0;
+            XGetInputFocus(display_, &focus_win, &revert_to);
+            if (focus_win != 0 && focus_win != PointerRoot) {
+                Window root = 0;
+                int x = 0, y = 0;
+                unsigned int width = 0, height = 0, border = 0, depth = 0;
+                if (XGetGeometry(display_, focus_win, &root, &x, &y, &width, &height, &border, &depth)) {
+                    int child_x = 0, child_y = 0;
+                    Window child = 0;
+                    XTranslateCoordinates(display_, focus_win, root, 0, 0, &child_x, &child_y, &child);
+                    rect.x = child_x;
+                    rect.y = child_y;
+                    rect.width = static_cast<int>(width);
+                    rect.height = static_cast<int>(height);
+                    rect.valid = true;
+                }
+            }
+        }
+        if (!rect.valid) {
+            rect.x = 100;
+            rect.y = 100;
+            rect.width = 1280;
+            rect.height = 800;
+            rect.valid = true;
+        }
+        return rect;
+    }
+
+    void trigger_targeted_blur(const WindowRect& rect) override {
+        if (!display_) return;
+        if (overlay_win_ == 0) {
+            int screen = DefaultScreen(display_);
+            Window root = RootWindow(display_, screen);
+
+            XSetWindowAttributes attrs;
+            attrs.override_redirect = True;
+            attrs.background_pixel = BlackPixel(display_, screen);
+
+            overlay_win_ = XCreateWindow(
+                display_, root,
+                rect.x, rect.y, static_cast<unsigned int>(rect.width), static_cast<unsigned int>(rect.height),
+                0, CopyFromParent, InputOutput, CopyFromParent,
+                CWOverrideRedirect | CWBackPixel, &attrs
+            );
+
+            if (overlay_win_) {
+                XMapRaised(display_, overlay_win_);
+                XFlush(display_);
+            }
+        }
+    }
+
+    void trigger_soft_alert(const std::string& message) override {
+        int ret = std::system("notify-send -u critical -t 2000 '🛡️ Blindside Privacy Warning' 'Unrecognized face looking at screen!' 2>/dev/null &");
+        (void)ret;
+    }
+
+    void trigger_hard_defense(const std::string& message) override {
+        int ret = std::system("loginctl lock-session 2>/dev/null || xset ss activate 2>/dev/null || dbus-send --type=method_call --dest=org.gnome.ScreenSaver /org/gnome/ScreenSaver org.gnome.ScreenSaver.Lock 2>/dev/null &");
+        (void)ret;
+    }
+
+    void clear_alerts() override {
+        if (display_ && overlay_win_ != 0) {
+            XDestroyWindow(display_, overlay_win_);
+            overlay_win_ = 0;
+            XFlush(display_);
+        }
+    }
+
+private:
+    Display* display_ = nullptr;
+    Window overlay_win_ = 0;
+};
+
+std::unique_ptr<PlatformManager> PlatformManager::create() {
+    return std::make_unique<LinuxX11PlatformManager>();
+}
+
+} // namespace blindside
