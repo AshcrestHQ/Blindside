@@ -33,7 +33,7 @@ Found a memory leak? A buffer overflow? A way to bypass the screen lock?
 **DO NOT POST IT IN GITHUB ISSUES.**
 
 Email us directly:
-- **Email**: `security@ashcrest.org` or `medhansh.hq@outlook.com`
+- **Email**: `medhansh.hq@outlook.com`
 
 Include:
 - OS/Kernel version.
