@@ -25,6 +25,7 @@ blindside_threats.log
 *.suo
 *.sln
 *.vcxproj*
+compile_commands.json
 
 # CMake user files
 CMakeCache.txt
@@ -33,3 +34,7 @@ cmake_install.cmake
 Makefile
 ctest.log
 models/*.onnx
+
+# Artifacts
+Blindside-V3-Linux-x64/
+Blindside-V3-Linux-x64.tar.gz
