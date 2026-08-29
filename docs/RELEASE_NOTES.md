@@ -1,7 +1,7 @@
-# Blindside V2 — Release Candidate
+# Blindside V3 — Release
 
 ## What's new
-Blindside V2 is a complete rewrite of the initial prototype, transforming it from an experimental concept into a stable, demonstrable, local-first physical privacy daemon. 
+Blindside V3 is a complete rewrite of the initial prototype, transforming it from an experimental concept into a stable, demonstrable, local-first physical privacy daemon.
 
 ## The big changes
 - We stripped out the hardcoded boundary boxes and unreliable heuristics.

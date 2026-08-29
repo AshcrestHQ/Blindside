@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "========================================================\n"
-              << "  🛡️ BLINDSIDE: Physical Privacy & Visual Eavesdropper Daemon (v2)\n"
+              << "  🛡️ BLINDSIDE: Physical Privacy & Visual Eavesdropper Daemon (v3)\n"
               << "========================================================\n"
               << "Mode: " << blindside::SystemTrayController::get_mode_name(config.daemon_state)
               << " | Active FPS: " << config.active_fps 

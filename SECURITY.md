@@ -6,12 +6,13 @@ We build privacy tools. If Blindside has a vuln, that defeats the whole point. W
 
 ## 🔒 Supported Versions
 
-Only the `main` branch (v2.x) gets patches. If you're on v1.x, upgrade. We ripped out the old fake AI engine anyway, you don't want to be running that.
+Only the `main` branch (v3.x) gets patches. If you're on v2.x, upgrade. We ripped out the old fake AI engine anyway, you don't want to be running that.
 
 | Version | Supported | Notes |
 | :--- | :--- | :--- |
-| `2.0.x` (`main`) | ✅ **Yes** | Active development. |
-| `1.x` | ❌ No | Dead. RIP. |
+| v3.x | :white_check_mark: | Active development (C++20 CV Engine). |
+| v2.x | :x: | Legacy release candidate version. Upgrade to v3. |
+| v1.x | :x: | Deprecated Python prototype. Known memory leaks. |
 
 ---
 

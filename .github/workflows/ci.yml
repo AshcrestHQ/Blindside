@@ -60,7 +60,7 @@ jobs:
           curl -L "https://github.com/opencv/opencv_zoo/raw/master/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o models/face_detection_yunet_2023mar.onnx
           
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR="C:\tools\opencv\build"
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -72,7 +72,7 @@ jobs:
       - name: Prepare Release Artifact
         run: |
           $readme = @"
-          Blindside V2
+          Blindside V3
 
           Requirements:
           - Windows x64
@@ -100,7 +100,7 @@ jobs:
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Blindside-V2-Windows-x64
+          name: Blindside-V3-Windows-x64
           path: |
             build/Release/blindside_daemon.exe
             build/Release/*.dll
