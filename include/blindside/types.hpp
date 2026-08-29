@@ -49,6 +49,7 @@ struct HeadPose {
     
     Point3f gaze_vector{0.0f, 0.0f, 1.0f}; // Unit gaze vector pointing out from face
     bool is_looking_at_screen = false;
+    bool valid = false;
 };
 
 struct FaceDetectionResult {

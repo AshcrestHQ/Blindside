@@ -1,4 +1,5 @@
 #include "blindside/daemon.hpp"
+#include "blindside/logger.hpp"
 #include <iostream>
 #include <chrono>
 
@@ -93,11 +94,23 @@ void Daemon::worker_loop(std::stop_token stop_token) {
 
         config_.daemon_state = current_state;
         const RawFrame& frame = opt_frame.value();
-        FrameResult result = eavesdropper_detector_.process_frame(frame);
+        
+        FrameResult result;
+        try {
+            result = eavesdropper_detector_.process_frame(frame);
+        } catch (const std::exception& e) {
+            std::cerr << "[Daemon] Exception during frame processing: " << e.what() << std::endl;
+            continue; // Skip triggering and rate changes on bad frame
+        }
+
         result.daemon_state = current_state;
         processed_frames_++;
 
         // Execute OS Privacy Triggers (Targeted Blur or Full Workstation Lock)
+        if (result.trigger_soft_alert || result.trigger_hard_defense || result.trigger_targeted_blur) {
+            std::string threat_class = result.trigger_hard_defense ? "HARD_DEFENSE" : (result.trigger_targeted_blur ? "BLUR_ACTIVE" : "SOFT_ALERT");
+            blindside::Logger::get_instance().log_threat("EAVESDROPPER_DETECTED", threat_class, result.secondary_gaze_duration_sec, result.faces.size());
+        }
         privacy_trigger_.execute_triggers(result);
 
         // Adaptive Sampling Rate State Machine (30 FPS active -> 5 FPS idle)

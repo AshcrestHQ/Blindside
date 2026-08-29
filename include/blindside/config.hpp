@@ -53,6 +53,7 @@ struct Config {
     bool enable_blur_overlay = true;
     bool enable_sound_alert = false;
     std::string log_file_path = "blindside_threats.log";
+    std::string model_path = "";
 };
 
 } // namespace blindside

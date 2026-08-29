@@ -21,11 +21,34 @@ void test_ear_calculation() {
     std::cout << "[TEST PASSED] Eye Aspect Ratio (EAR) calculation test." << std::endl;
 }
 
+class MockFaceDetector : public blindside::IFaceDetector {
+public:
+    bool initialize(const std::string& model_path = "") override { return true; }
+    std::vector<blindside::FaceBox> detect(const blindside::RawFrame& frame) override {
+        std::vector<blindside::FaceBox> res;
+        blindside::FaceBox primary;
+        primary.x = 300; primary.y = 200; primary.width = 100; primary.height = 100;
+        primary.landmarks[0] = {330, 230}; primary.landmarks[1] = {370, 230};
+        primary.landmarks[2] = {350, 250}; primary.landmarks[3] = {330, 270}; primary.landmarks[4] = {370, 270};
+        res.push_back(primary);
+
+        if (frame.buffer.size() > 0 && frame.buffer[0] == 220) {
+            blindside::FaceBox secondary;
+            secondary.x = 100; secondary.y = 100; secondary.width = 100; secondary.height = 100;
+            secondary.landmarks[0] = {130, 130}; secondary.landmarks[1] = {170, 130};
+            secondary.landmarks[2] = {150, 150}; secondary.landmarks[3] = {130, 170}; secondary.landmarks[4] = {170, 170};
+            res.push_back(secondary);
+        }
+        return res;
+    }
+    bool is_initialized() const override { return true; }
+};
+
 void test_photo_spoof_rejection() {
     blindside::Config config;
     config.hysteresis_sec = 0.4;
     config.ear_blink_threshold = 0.20f;
-    blindside::FaceDetector detector(config);
+    MockFaceDetector detector;
     blindside::PoseEstimator estimator(config);
     detector.initialize();
 

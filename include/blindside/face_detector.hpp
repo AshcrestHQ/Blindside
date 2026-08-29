@@ -6,28 +6,37 @@
 #include "blindside/camera.hpp"
 #include <vector>
 #include <string>
-#include <memory>
+
+namespace cv {
+    class FaceDetectorYN;
+}
 
 namespace blindside {
 
-class FaceDetector {
+class IFaceDetector {
+public:
+    virtual ~IFaceDetector() = default;
+    virtual bool initialize(const std::string& model_path = "") = 0;
+    virtual std::vector<FaceBox> detect(const RawFrame& frame) = 0;
+    virtual bool is_initialized() const = 0;
+};
+
+class FaceDetector : public IFaceDetector {
 public:
     explicit FaceDetector(const Config& config);
-    ~FaceDetector();
+    ~FaceDetector() override;
 
-    bool initialize(const std::string& model_path = "");
+    bool initialize(const std::string& model_path = "models/face_detection_yunet_2023mar.onnx") override;
     
-    // Detect all face candidates in raw image frame
-    std::vector<FaceBox> detect(const RawFrame& frame);
+    std::vector<FaceBox> detect(const RawFrame& frame) override;
 
-    bool is_initialized() const { return initialized_; }
+    bool is_initialized() const override { return initialized_; }
 
 private:
     Config config_;
     bool initialized_ = false;
 
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    void* detector_ptr_ = nullptr;
 };
 
 } // namespace blindside

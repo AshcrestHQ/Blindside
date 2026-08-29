@@ -22,55 +22,55 @@ include_directories(
 find_package(Threads REQUIRED)
 
 # OpenCV Search
-find_package(OpenCV QUIET)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio highgui objdetect calib3d)
 if(OpenCV_FOUND)
     message(STATUS "OpenCV found version: ${OpenCV_VERSION}")
     include_directories(${OpenCV_INCLUDE_DIRS})
-else()
-    message(STATUS "OpenCV not found via CMake find_package. Using native/emulated fallback headers.")
-endif()
-
-# ONNX Runtime Search
-find_path(ONNXRUNTIME_INCLUDE_DIR NAMES onnxruntime_cxx_api.h PATHS /usr/local/include /usr/include)
-find_library(ONNXRUNTIME_LIBRARY NAMES onnxruntime PATHS /usr/local/lib /usr/lib /usr/lib/x86_64-linux-gnu)
-
-if(ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIBRARY)
-    message(STATUS "ONNX Runtime found: ${ONNXRUNTIME_LIBRARY}")
-    include_directories(${ONNXRUNTIME_INCLUDE_DIR})
 endif()
 
 # Platform specific UI & OS libraries
 set(PLATFORM_LIBS Threads::Threads)
-
-if(UNIX AND NOT APPLE)
-    find_package(X11 QUIET)
-    if(X11_FOUND)
-        include_directories(${X11_INCLUDE_DIR})
-        list(APPEND PLATFORM_LIBS ${X11_LIBRARIES})
-        add_compile_definitions(HAVE_X11)
-    endif()
-endif()
+set(PLATFORM_SOURCES "")
 
 if(WIN32)
     list(APPEND PLATFORM_LIBS User32.lib Gdi32.lib Dwmapi.lib Comctl32.lib)
+    list(APPEND PLATFORM_SOURCES src/platform/windows.cpp src/platform/windows_paths.cpp)
+elseif(UNIX AND NOT APPLE)
+    # Check for Wayland
+    set(WAYLAND_DETECTED OFF)
+    if(DEFINED ENV{WAYLAND_DISPLAY})
+        set(WAYLAND_DETECTED ON)
+        message(STATUS "Wayland environment detected. Using Wayland fallback platform.")
+        list(APPEND PLATFORM_SOURCES src/platform/linux_wayland.cpp src/platform/linux_paths.cpp)
+    else()
+        find_package(X11 QUIET)
+        if(X11_FOUND)
+            message(STATUS "X11 environment detected.")
+            include_directories(${X11_INCLUDE_DIR})
+            list(APPEND PLATFORM_LIBS ${X11_LIBRARIES})
+            add_compile_definitions(HAVE_X11)
+            list(APPEND PLATFORM_SOURCES src/platform/linux_x11.cpp src/platform/linux_paths.cpp)
+        else()
+            message(WARNING "Neither Wayland nor X11 detected. Falling back to Wayland empty implementation.")
+            list(APPEND PLATFORM_SOURCES src/platform/linux_wayland.cpp src/platform/linux_paths.cpp)
+        endif()
+    endif()
 endif()
 
 if(OpenCV_FOUND)
     list(APPEND PLATFORM_LIBS ${OpenCV_LIBS})
 endif()
 
-if(ONNXRUNTIME_LIBRARY)
-    list(APPEND PLATFORM_LIBS ${ONNXRUNTIME_LIBRARY})
-endif()
-
 # Core Blindside Library
 add_library(blindside_lib
     src/core/camera.cpp
+    src/core/logger.cpp
     src/engine/face_detector.cpp
     src/engine/pose_estimator.cpp
     src/engine/eavesdropper_detector.cpp
     src/trigger/privacy_trigger.cpp
     src/daemon/daemon.cpp
+    ${PLATFORM_SOURCES}
 )
 
 target_link_libraries(blindside_lib PUBLIC ${PLATFORM_LIBS})
@@ -78,6 +78,20 @@ target_link_libraries(blindside_lib PUBLIC ${PLATFORM_LIBS})
 # Main Executable
 add_executable(blindside_daemon src/main.cpp)
 target_link_libraries(blindside_daemon PRIVATE blindside_lib)
+
+# Copy Models to output directory for all platforms
+add_custom_command(TARGET blindside_daemon POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/models" "$<TARGET_FILE_DIR:blindside_daemon>/models"
+)
+
+# Package Runtime DLLs for Windows
+if(WIN32 AND OpenCV_FOUND)
+    # Recursively find OpenCV DLLs and copy them next to the executable
+    add_custom_command(TARGET blindside_daemon POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${OpenCV_DIR}/x64/vc16/bin" "$<TARGET_FILE_DIR:blindside_daemon>" 
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${OpenCV_DIR}/bin" "$<TARGET_FILE_DIR:blindside_daemon>" 
+    )
+endif()
 
 # Enable CTest Testing
 enable_testing()
@@ -97,3 +111,7 @@ add_test(NAME test_eavesdropper COMMAND test_eavesdropper)
 add_executable(test_liveness tests/test_liveness.cpp)
 target_link_libraries(test_liveness PRIVATE blindside_lib)
 add_test(NAME test_liveness COMMAND test_liveness)
+
+add_executable(test_pipeline tests/test_pipeline.cpp)
+target_link_libraries(test_pipeline PRIVATE blindside_lib)
+add_test(NAME test_pipeline COMMAND test_pipeline)

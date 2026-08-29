@@ -6,7 +6,7 @@
 namespace blindside {
 
 EavesdropperDetector::EavesdropperDetector(const Config& config,
-                                           FaceDetector& detector,
+                                           IFaceDetector& detector,
                                            PoseEstimator& estimator)
     : config_(config), face_detector_(detector), pose_estimator_(estimator) {
     
@@ -56,10 +56,10 @@ bool EavesdropperDetector::calibrate(const RawFrame& frame) {
     return true;
 }
 
-void EavesdropperDetector::reset_state() {
+void EavesdropperDetector::reset_trigger_state() {
     secondary_gaze_active_ = false;
-    history_count_ = 0;
-    history_head_ = 0;
+    // We intentionally DO NOT clear history_count_ or history_head_.
+    // Liveness evidence naturally expires via timestamps.
 }
 
 bool EavesdropperDetector::evaluate_liveness(double current_pitch, double current_yaw, float current_ear, bool& is_spoof_photo) {
@@ -137,7 +137,7 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
 
     auto raw_faces = face_detector_.detect(frame);
     if (raw_faces.empty()) {
-        reset_state();
+        reset_trigger_state();
         return result;
     }
 
@@ -153,6 +153,10 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
         FaceDetectionResult face_res;
         face_res.box = raw_face;
         face_res.pose = pose_estimator_.estimate_pose(raw_face, frame);
+        
+        // Skip invalid poses from degenerate geometry / failure
+        if (!face_res.pose.valid) continue;
+
         face_res.ear = PoseEstimator::compute_ear(raw_face);
 
         float norm_cx = raw_face.center_x() / norm_w;
@@ -204,7 +208,7 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
             }
         }
     } else {
-        reset_state();
+        reset_trigger_state();
     }
 
     return result;

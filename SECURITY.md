@@ -1,62 +1,52 @@
-# 🛡️ Security Policy & Vulnerability Disclosure
+# 🛡️ Security Policy
 
-The **Blindside** engineering team treats physical and visual privacy as critical security domains. We take security vulnerabilities seriously and strive to maintain zero-trust edge isolation standards across all supported operating systems.
+We build privacy tools. If Blindside has a vuln, that defeats the whole point. We take this seriously.
 
 ---
 
 ## 🔒 Supported Versions
 
-Only the latest release and the `main` branch receive active security patches and threat updates.
+Only the `main` branch (v2.x) gets patches. If you're on v1.x, upgrade. We ripped out the old fake AI engine anyway, you don't want to be running that.
 
-| Version | Supported | Security Maintenance Level |
+| Version | Supported | Notes |
 | :--- | :--- | :--- |
-| `2.0.x` (`main`) | ✅ **Yes** | Active Security & Feature Maintenance |
-| `1.x` | ❌ No | End of Life (Upgrade to 2.0+) |
+| `2.0.x` (`main`) | ✅ **Yes** | Active development. |
+| `1.x` | ❌ No | Dead. RIP. |
 
 ---
 
-## 🛡️ Security Architecture & Privacy Guarantees
+## 🛡️ The Guarantees
 
-Blindside enforces strict privacy and anti-exfiltration constraints by design:
-
-1. **Zero Network Socket Calls**: Blindside does not open TCP/UDP sockets, perform HTTP/DNS requests, or communicate with external telemetry endpoints.
-2. **Zero Disk Video Retention**: Raw camera frames are stored exclusively in an in-memory C++ circular ring buffer (`RingBuffer<T, 4>`). No video streams or frame captures are written to disk.
-3. **Local ONNX Inference**: All computer vision model inferences (YuNet face detection, 3D pose estimation, liveness checks) run 100% on local CPU/GPU hardware.
-4. **Anonymized Security Audit Logs**: Audit log records (`blindside_threats.log`) record only timestamps, threat classifications, gaze durations, and face counts—never facial features or personal biometrics.
-
-For a full formal analysis, view [THREAT_MODEL.md](THREAT_MODEL.md).
+If you find a bug that breaks any of these four rules, we want to know immediately:
+1. **Zero Network Traffic**: Blindside shouldn't even look at a network socket.
+2. **Zero Disk I/O for Video**: Frames go into the RAM ring buffer and die there.
+3. **100% Local Inference**: YuNet and SolvePnP run on your local silicon.
+4. **No Biometrics Saved**: We log threat events, not faces.
 
 ---
 
-## 🚨 Reporting a Vulnerability
+## 🚨 Reporting a Vuln
 
-If you discover a potential security vulnerability (e.g., memory corruption, privilege escalation, bypass of privacy redaction controls, or unexpected disk writing), **do not report it publicly via open GitHub issues.**
+Found a memory leak? A buffer overflow? A way to bypass the screen lock?
 
-Please send a encrypted report to the security maintainers:
+**DO NOT POST IT IN GITHUB ISSUES.**
 
+Email us directly:
 - **Email**: `security@ashcrest.org` or `medhansh@ashcrest.org`
-- **GPG Key Fingerprint** (if available): Refer to maintainer profile
 
-### Report Checklist
-Please include the following details in your report:
-- **Description**: Summary of the vulnerability and potential security impact.
-- **Affected System**: Operating System (Linux kernel version / Windows build), CMake flags used, ONNX Runtime version.
-- **Reproduction Steps**: Step-by-step instructions or Proof-of-Concept (PoC) code.
-- **Mitigation Suggestion**: Any suggested patches or workarounds.
+Include:
+- OS/Kernel version.
+- CMake flags you used.
+- A Proof-of-Concept (PoC) if you have one.
+- How to reproduce it.
 
 ---
 
 ## ⏱️ Response Timeline
 
-| Milestone | Target Response Time |
-| :--- | :--- |
-| **Initial Acknowledgment** | Within 24 hours |
-| **Triage & Risk Assessment** | Within 72 hours |
-| **Fix Development & Patch** | Within 7–14 days |
-| **Public CVE Release** | Coordinated upon patch release |
+We're engineers, we get it. We won't leave you on read.
+- **Acknowledgment**: 24 hours
+- **Triage**: 72 hours
+- **Patch**: 7–14 days
 
----
-
-## 🎖️ Security Recognition
-
-We publicly credit security researchers who report valid vulnerabilities in our release notes (unless anonymity is requested).
+We will give you full credit in the CVE and release notes (unless you want to stay anonymous).

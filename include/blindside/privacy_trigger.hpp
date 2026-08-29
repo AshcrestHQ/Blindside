@@ -3,6 +3,7 @@
 
 #include "blindside/config.hpp"
 #include "blindside/types.hpp"
+#include "blindside/platform.hpp"
 #include <string>
 #include <memory>
 #include <fstream>
@@ -51,6 +52,11 @@ public:
      */
     void log_threat_event(const std::string& threat_type, double gaze_duration_sec, size_t face_count, bool live_verified);
 
+    /**
+     * @brief Gets current platform diagnostics and capability info.
+     */
+    PlatformDiagnostics get_diagnostics() const;
+
     bool is_hard_defense_active() const { return hard_defense_active_; }
     bool is_soft_alert_active() const { return soft_alert_active_; }
     bool is_targeted_blur_active() const { return targeted_blur_active_; }
@@ -62,8 +68,7 @@ private:
     bool targeted_blur_active_ = false;
     std::ofstream log_stream_;
 
-    struct PlatformImpl;
-    std::unique_ptr<PlatformImpl> platform_impl_;
+    std::unique_ptr<PlatformManager> platform_manager_;
 };
 
 } // namespace blindside

@@ -1,6 +1,8 @@
 #include "blindside/pose_estimator.hpp"
 #include <cmath>
 #include <algorithm>
+#include <opencv2/opencv.hpp>
+#include <opencv2/calib3d.hpp>
 
 namespace blindside {
 
@@ -22,7 +24,6 @@ float PoseEstimator::compute_ear(const FaceBox& face) {
     float eye_center_y = (eye_r.y + eye_l.y) * 0.5f;
     float nose_dist_v = std::abs(nose.y - eye_center_y);
 
-    // Eye Aspect Ratio: ratio of vertical landmark dist to horizontal interocular span
     float ear = (nose_dist_v > 0.001f) ? (nose_dist_v / (1.8f * interocular_dist)) : 0.30f;
     return std::clamp(ear, 0.05f, 0.45f);
 }
@@ -42,39 +43,82 @@ HeadPose PoseEstimator::estimate_pose(const FaceBox& face, const RawFrame& frame
     HeadPose pose;
     if (frame.width <= 0 || frame.height <= 0) return pose;
 
-    // 1. Calculate eye mid-point & inter-ocular distance
-    const auto& eye_r = face.landmarks[0];
-    const auto& eye_l = face.landmarks[1];
-    const auto& nose  = face.landmarks[2];
+    // 1. Generic 3D facial model (5 points corresponding to YuNet output)
+    std::vector<cv::Point3d> model_points;
+    model_points.push_back(cv::Point3d(-225.0f, 170.0f, -135.0f)); // Right eye
+    model_points.push_back(cv::Point3d( 225.0f, 170.0f, -135.0f)); // Left eye
+    model_points.push_back(cv::Point3d(   0.0f,   0.0f,    0.0f)); // Nose
+    model_points.push_back(cv::Point3d(-150.0f, -150.0f, -125.0f)); // Right mouth corner
+    model_points.push_back(cv::Point3d( 150.0f, -150.0f, -125.0f)); // Left mouth corner
 
-    float eye_dx = eye_l.x - eye_r.x;
-    float eye_dy = eye_l.y - eye_r.y;
-    float interocular_dist = std::sqrt(eye_dx * eye_dx + eye_dy * eye_dy);
+    // 2. 2D image points from detected face
+    std::vector<cv::Point2d> image_points;
+    for (int i = 0; i < 5; ++i) {
+        image_points.push_back(cv::Point2d(face.landmarks[i].x, face.landmarks[i].y));
+    }
 
-    // Roll angle from eye tilt
-    pose.roll_deg = std::atan2(eye_dy, eye_dx) * 180.0 / M_PI_VAL;
+    // 3. Approximate Camera Calibration
+    double focal_length = frame.width; 
+    cv::Point2d center = cv::Point2d(frame.width / 2.0, frame.height / 2.0);
+    cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << focal_length, 0, center.x,
+                                                       0, focal_length, center.y,
+                                                       0, 0, 1);
+    cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); 
 
-    // 2. Yaw angle estimation from nose horizontal displacement relative to eyes center
-    float eye_center_x = (eye_r.x + eye_l.x) * 0.5f;
-    float nose_rel_x = nose.x - eye_center_x;
-    float normalized_yaw_ratio = (interocular_dist > 0.001f) ? (nose_rel_x / interocular_dist) : 0.0f;
+    try {
+        // 4. SolvePnP
+        cv::Mat rotation_vector; 
+        cv::Mat translation_vector;
+        bool success = cv::solvePnP(model_points, image_points, camera_matrix, dist_coeffs, rotation_vector, translation_vector);
 
-    // Clamp ratio to [-1, 1]
-    normalized_yaw_ratio = std::clamp(normalized_yaw_ratio, -1.0f, 1.0f);
-    pose.yaw_deg = normalized_yaw_ratio * 60.0; // Map ratio to +/- 60 deg yaw
+        if (!success || rotation_vector.empty()) {
+            pose.valid = false;
+            return pose;
+        }
 
-    // 3. Pitch angle estimation from nose vertical position relative to face height
-    float eye_center_y = (eye_r.y + eye_l.y) * 0.5f;
-    float nose_rel_y = nose.y - eye_center_y;
-    float expected_nose_y = face.height * 0.20f;
-    float pitch_ratio = (face.height > 0.001f) ? ((nose_rel_y - expected_nose_y) / face.height) : 0.0f;
-    pose.pitch_deg = std::clamp(pitch_ratio * 70.0f, -45.0f, 45.0f);
+        // 5. Convert rotation vector to Euler angles (pitch, yaw, roll)
+        cv::Mat rmat;
+        cv::Rodrigues(rotation_vector, rmat);
 
-    // Compute 3D gaze vector
-    pose.gaze_vector = compute_gaze_vector(pose.pitch_deg, pose.yaw_deg);
+        // From rotation matrix to Euler angles
+        double m00 = rmat.at<double>(0, 0);
+        double m10 = rmat.at<double>(1, 0);
+        double m20 = rmat.at<double>(2, 0);
+        double m21 = rmat.at<double>(2, 1);
+        double m22 = rmat.at<double>(2, 2);
 
-    // Check if gaze points at screen
-    pose.is_looking_at_screen = is_gaze_directed_at_screen(pose);
+        double sy = std::sqrt(m00 * m00 + m10 * m10);
+        bool singular = sy < 1e-6;
+
+        double x, y, z;
+        if (!singular) {
+            x = std::atan2(m21, m22);
+            y = std::atan2(-m20, sy);
+            z = std::atan2(m10, m00);
+        } else {
+            x = std::atan2(-rmat.at<double>(1, 2), rmat.at<double>(1, 1));
+            y = std::atan2(-m20, sy);
+            z = 0;
+        }
+
+        // Convert to degrees
+        pose.pitch_deg = x * 180.0 / M_PI_VAL;
+        pose.yaw_deg = y * 180.0 / M_PI_VAL;
+        pose.roll_deg = z * 180.0 / M_PI_VAL;
+
+        // Adjust signs/orientation to match coordinate system convention
+        pose.yaw_deg = -pose.yaw_deg;
+
+        // Compute 3D gaze vector
+        pose.gaze_vector = compute_gaze_vector(pose.pitch_deg, pose.yaw_deg);
+
+        // Check if gaze points at screen
+        pose.is_looking_at_screen = is_gaze_directed_at_screen(pose);
+        pose.valid = true;
+
+    } catch (const cv::Exception& e) {
+        pose.valid = false;
+    }
 
     return pose;
 }

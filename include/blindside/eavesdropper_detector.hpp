@@ -22,7 +22,7 @@ struct PoseHistorySample {
 class EavesdropperDetector {
 public:
     EavesdropperDetector(const Config& config, 
-                         FaceDetector& detector, 
+                         IFaceDetector& detector, 
                          PoseEstimator& estimator);
     ~EavesdropperDetector() = default;
 
@@ -37,9 +37,9 @@ public:
     FrameResult process_frame(const RawFrame& frame);
 
     /**
-     * @brief Resets the hysteresis timer and state.
+     * @brief Resets the hysteresis timer and state without clearing liveness history.
      */
-    void reset_state();
+    void reset_trigger_state();
 
     bool is_calibrated() const { return calibrated_; }
     FaceBox get_primary_calibration_box() const { return primary_calibration_box_; }
@@ -51,7 +51,7 @@ private:
     bool evaluate_liveness(double current_pitch, double current_yaw, float current_ear, bool& is_spoof_photo);
 
     Config config_;
-    FaceDetector& face_detector_;
+    IFaceDetector& face_detector_;
     PoseEstimator& pose_estimator_;
 
     bool calibrated_ = false;

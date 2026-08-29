@@ -30,7 +30,7 @@ public:
     static const char* get_mode_name(DaemonState mode) {
         switch (mode) {
             case DaemonState::StrictFullLock:       return "Strict Mode (Full OS Lock)";
-            case DaemonState::GracefulTargetedBlur: return "Graceful Mode (Targeted Window Blur)";
+            case DaemonState::GracefulTargetedBlur: return "Graceful Mode (Targeted Window Redaction)";
             case DaemonState::PauseDetection:        return "Pause Detection";
         }
         return "Unknown";

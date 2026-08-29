@@ -10,10 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: C++ Build & Tests
+  build_linux:
+    name: Linux X11 Build & Tests
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,9 +23,16 @@ jobs:
           sudo apt-get install -y \
             cmake \
             ninja-build \
-            libopencv-dev
+            libopencv-dev \
+            libx11-dev \
+            libxext-dev
 
-      - name: Configure
+      - name: Download test fixture (YuNet model)
+        run: |
+          mkdir -p models
+          curl -L "https://github.com/opencv/opencv_zoo/raw/master/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o models/face_detection_yunet_2023mar.onnx
+          
+      - name: Configure (X11 Backend Explicit)
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -34,4 +40,70 @@ jobs:
 
       - name: Test
         working-directory: build
-        run: ctest --output-on-failure
+        run: ctest --output-on-failure --output-junit test_results.xml
+
+  build_windows:
+    name: Windows MSVC Build & Tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OpenCV
+        run: |
+          # Use vcpkg or chocolatey. Chocolatey is easiest for OpenCV on Windows runners
+          choco install opencv -y
+
+      - name: Download test fixture (YuNet model)
+        run: |
+          mkdir models
+          curl -L "https://github.com/opencv/opencv_zoo/raw/master/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o models/face_detection_yunet_2023mar.onnx
+          
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        working-directory: build
+        run: ctest -C Release --output-on-failure
+
+      - name: Prepare Release Artifact
+        run: |
+          $readme = @"
+          Blindside V2
+
+          Requirements:
+          - Windows x64
+          - webcam for live detection
+
+          Run:
+
+          blindside_daemon.exe --diagnostics
+
+          Then:
+
+          blindside_daemon.exe
+
+          Troubleshooting:
+          - missing model
+          - missing DLL
+          - camera unavailable
+
+          For source code and documentation:
+          https://github.com/AshcrestHQ/Blindside
+          "@
+          Set-Content -Path build\Release\README.txt -Value $readme
+          Copy-Item LICENSE -Destination build\Release\LICENSE
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Blindside-V2-Windows-x64
+          path: |
+            build/Release/blindside_daemon.exe
+            build/Release/*.dll
+            build/Release/models/
+            build/Release/README.txt
+            build/Release/LICENSE
