@@ -126,7 +126,9 @@ int main(int argc, char* argv[]) {
         std::cerr << "[Blindside CLI] Warning: Failed to initialize logger at " << config.log_file_path << std::endl;
     }
 
-    blindside::Logger::get_instance().log_system("Blindside daemon starting. Mode: " + blindside::SystemTrayController::get_mode_name(config.daemon_state));
+    blindside::Logger::get_instance().log_system(
+        std::string("Blindside daemon starting. Mode: ") +
+        blindside::SystemTrayController::get_mode_name(config.daemon_state));
 
     if (!daemon.initialize()) {
         std::cerr << "[Blindside CLI] Daemon initialization failed!" << std::endl;
