@@ -19,10 +19,10 @@ public:
 
         if (frame.buffer.size() > 0 && frame.buffer[0] == 220) {
             blindside::FaceBox secondary;
-            secondary.x = 100; secondary.y = 100; secondary.width = 100; secondary.height = 100;
+            secondary.x = 50; secondary.y = 50; secondary.width = 100; secondary.height = 100;
             // Eavesdropper pointing towards the screen
-            secondary.landmarks[0] = {130, 130}; secondary.landmarks[1] = {170, 130};
-            secondary.landmarks[2] = {150, 150}; secondary.landmarks[3] = {130, 170}; secondary.landmarks[4] = {170, 170};
+            secondary.landmarks[0] = {80, 80}; secondary.landmarks[1] = {120, 80};
+            secondary.landmarks[2] = {100, 100}; secondary.landmarks[3] = {80, 120}; secondary.landmarks[4] = {120, 120};
             res.push_back(secondary);
         }
         return res;
@@ -54,6 +54,7 @@ void test_primary_user_calibration() {
 void test_eavesdropper_gaze_hysteresis() {
     blindside::Config config;
     config.hysteresis_sec = 0.5; // Short hysteresis threshold for unit test
+    config.daemon_state = blindside::DaemonState::StrictFullLock;
     MockFaceDetector detector;
     blindside::PoseEstimator estimator(config);
     detector.initialize();
@@ -68,6 +69,7 @@ void test_eavesdropper_gaze_hysteresis() {
 
     // First frame detects secondary gaze -> Soft alert triggered, but hard defense false (< hysteresis_sec)
     auto res1 = eavesdropper.process_frame(frame);
+
     assert(res1.trigger_soft_alert == true);
     assert(res1.trigger_hard_defense == false);
 

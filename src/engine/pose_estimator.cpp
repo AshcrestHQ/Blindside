@@ -69,7 +69,7 @@ HeadPose PoseEstimator::estimate_pose(const FaceBox& face, const RawFrame& frame
         // 4. SolvePnP
         cv::Mat rotation_vector; 
         cv::Mat translation_vector;
-        bool success = cv::solvePnP(model_points, image_points, camera_matrix, dist_coeffs, rotation_vector, translation_vector);
+        bool success = cv::solvePnP(model_points, image_points, camera_matrix, dist_coeffs, rotation_vector, translation_vector, false, cv::SOLVEPNP_EPNP);
 
         if (!success || rotation_vector.empty()) {
             pose.valid = false;
@@ -106,6 +106,10 @@ HeadPose PoseEstimator::estimate_pose(const FaceBox& face, const RawFrame& frame
         pose.yaw_deg = y * 180.0 / M_PI_VAL;
         pose.roll_deg = z * 180.0 / M_PI_VAL;
 
+        // Normalize angles if model Z is flipped (giving angles near 180 or -180)
+        if (pose.pitch_deg > 90.0) pose.pitch_deg -= 180.0;
+        else if (pose.pitch_deg < -90.0) pose.pitch_deg += 180.0;
+
         // Adjust signs/orientation to match coordinate system convention
         pose.yaw_deg = -pose.yaw_deg;
 
@@ -114,6 +118,7 @@ HeadPose PoseEstimator::estimate_pose(const FaceBox& face, const RawFrame& frame
 
         // Check if gaze points at screen
         pose.is_looking_at_screen = is_gaze_directed_at_screen(pose);
+
         pose.valid = true;
 
     } catch (const cv::Exception& e) {
