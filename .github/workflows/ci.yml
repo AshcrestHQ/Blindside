@@ -42,6 +42,41 @@ jobs:
         working-directory: build
         run: ctest --output-on-failure --output-junit test_results.xml
 
+      - name: Prepare Release Artifact
+        run: |
+          mkdir -p build/Release
+          cp build/blindside_daemon build/Release/
+          cp -r models build/Release/
+          cp LICENSE build/Release/
+          cat << 'EOF' > build/Release/README.txt
+          Blindside V3
+          
+          Requirements:
+          - Linux x64 (X11 or Wayland)
+          - OpenCV and X11 libraries:
+            sudo apt-get install libopencv-core4.0 libopencv-videoio4.0 libopencv-objdetect4.0 libopencv-imgproc4.0 libopencv-calib3d4.0
+          - webcam for live detection
+          
+          Run:
+          ./blindside_daemon --diagnostics
+          
+          Then:
+          ./blindside_daemon
+          
+          For source code and documentation:
+          https://github.com/AshcrestHQ/Blindside
+          EOF
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Blindside-V3-Linux-x64
+          path: |
+            build/Release/blindside_daemon
+            build/Release/models/
+            build/Release/README.txt
+            build/Release/LICENSE
+
   build_windows:
     name: Windows MSVC Build & Tests
     runs-on: windows-latest
