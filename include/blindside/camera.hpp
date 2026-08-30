@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstdint>
 #include <chrono>
+#include <atomic>
 
 namespace blindside {
 
@@ -41,8 +42,9 @@ public:
 
 private:
     Config config_;
-    bool is_open_ = false;
-    double current_fps_ = 30.0;
+    std::atomic<bool> is_open_ = false;
+    std::atomic<double> current_fps_ = 30.0;
+    std::atomic<bool> pending_fps_change_ = false;
     uint64_t frame_counter_ = 0;
     bool synthetic_mode_ = false;
     bool synthetic_eavesdropper_present_ = false;

@@ -76,6 +76,13 @@ void Daemon::capture_loop(std::stop_token stop_token) {
         RawFrame frame;
         if (camera_.grab_frame(frame)) {
             frame_buffer_.push(std::move(frame));
+        } else {
+            // Camera failure (or unavailable). Wait and attempt recovery.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            if (!stop_token.stop_requested() && running_.load()) {
+                std::cout << "[Daemon] Attempting camera recovery..." << std::endl;
+                camera_.open();
+            }
         }
     }
 }
