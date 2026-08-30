@@ -26,12 +26,22 @@ jobs:
         run: |
           apt-get update
           apt-get install -y \
+            build-essential \
+            pkg-config \
             cmake \
             ninja-build \
             libopencv-dev \
             libx11-dev \
             libxext-dev \
             curl
+
+      - name: Verify Toolchain & Dependencies
+        run: |
+          g++ --version
+          gcc --version
+          cmake --version
+          ninja --version
+          pkg-config --modversion opencv4
 
       - name: Download test fixture (YuNet model)
         run: |
