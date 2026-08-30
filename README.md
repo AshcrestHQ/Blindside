@@ -36,13 +36,18 @@ If a rando stares at your screen for too long, Blindside locks your workstation 
 
 ## ⚡ Quick Start
 
-```bash
 # 1. Clone the repository
 git clone https://github.com/AshcrestHQ/Blindside.git
 cd Blindside
 
-# 2. Install dependencies (Ubuntu/Debian example)
-sudo apt-get install cmake ninja-build libopencv-dev libx11-dev
+# 2. Install dependencies (Linux X11 / Wayland)
+
+> **Note on V3 Linux Releases:** The standard V3 Linux artifact uses a **system-linked OpenCV runtime strategy** and is actively built and tested against **OpenCV 4.10.x**. It requires the host system to provide OpenCV 4.10+ (e.g., Ubuntu 26.04 or compiled from source).
+
+```bash
+# Ubuntu 26.04+ (or equivalent providing OpenCV 4.10+)
+sudo apt-get install -y cmake ninja-build libopencv-core4.10 libopencv-videoio4.10 libopencv-objdetect4.10 libopencv-imgproc4.10 libopencv-calib3d4.10 libx11-dev libxext-dev
+```
 
 # 3. Download the YuNet model
 ./scripts/download_models.sh
