@@ -43,10 +43,34 @@ jobs:
           ninja --version
           pkg-config --modversion opencv4
 
-      - name: Download test fixture (YuNet model)
+      - name: Download and Verify test fixture (YuNet model)
         run: |
           mkdir -p models
-          curl -L "https://github.com/opencv/opencv_zoo/raw/master/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o models/face_detection_yunet_2023mar.onnx
+          URL="https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+          FILE="models/face_detection_yunet_2023mar.onnx"
+          EXPECTED_SHA="8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+          
+          curl -f -L -o $FILE $URL || { echo "Download failed"; exit 1; }
+          if [ ! -s $FILE ]; then echo "File is empty"; exit 1; fi
+          echo "$EXPECTED_SHA  $FILE" | sha256sum -c - || { echo "Checksum failed"; exit 1; }
+          
+          cat << 'EOF' > test_model.cpp
+          #include <opencv2/dnn.hpp>
+          #include <opencv2/objdetect.hpp>
+          #include <iostream>
+          int main() {
+              try {
+                  cv::Ptr<cv::FaceDetectorYN> detector = cv::FaceDetectorYN::create("models/face_detection_yunet_2023mar.onnx", "", cv::Size(320, 320));
+                  std::cout << "Successfully loaded ONNX model using FaceDetectorYN." << std::endl;
+              } catch (const cv::Exception& e) {
+                  std::cerr << "OpenCV Exception: " << e.what() << std::endl;
+                  return 1;
+              }
+              return 0;
+          }
+          EOF
+          g++ test_model.cpp -o test_model $(pkg-config --cflags --libs opencv4)
+          ./test_model
           
       - name: Configure (X11 Backend Explicit)
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
