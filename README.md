@@ -88,6 +88,8 @@ cmake -S . -B build && cmake --build build
 Let's not kid ourselves—CV on consumer hardware has limits:
 *   **Webcam Dependency**: If your camera is blocked or off, Blindside cannot function.
 *   **Lighting/Occlusions**: Heavy occlusion (masks, sunglasses) or poor lighting breaks YuNet facial landmarking.
+*   **Rendered / Displayed Content**: Faces rendered inside digital content (e.g., Pinterest boards, advertisements, screens) can currently be misclassified as physical secondary faces by YuNet detection.
+*   **Global Liveness Evaluation**: In V3.1.0, liveness verification is evaluated globally across secondary gaze events rather than independently per face track (independent per-track liveness is scheduled for V3.2).
 *   **Wayland Fallback**: We can't do targeted window redaction overlays on pure Wayland due to protocol restrictions. We fall back to standard `loginctl` screen locks.
 *   **Hardware Verification Status**: Local physical hardware tests are actively pending final validation for both X11 runtime and Windows runtime environments.
 

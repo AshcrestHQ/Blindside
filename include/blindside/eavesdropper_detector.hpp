@@ -19,6 +19,18 @@ struct PoseHistorySample {
     bool valid = false;
 };
 
+struct SecondaryFaceTrack {
+    size_t id = 0;
+    float norm_center_x = 0.0f;
+    float norm_center_y = 0.0f;
+    float norm_width = 0.0f;
+    float norm_height = 0.0f;
+    std::chrono::system_clock::time_point first_seen;
+    std::chrono::system_clock::time_point last_seen;
+    size_t hit_count = 0;
+    size_t miss_count = 0;
+};
+
 class EavesdropperDetector {
 public:
     EavesdropperDetector(const Config& config, 
@@ -44,11 +56,26 @@ public:
     bool is_calibrated() const { return calibrated_; }
     FaceBox get_primary_calibration_box() const { return primary_calibration_box_; }
 
+    /**
+     * @brief Validates physical bounding box dimensions (frame-relative sizing, aspect ratio, landmarks).
+     */
+    bool is_valid_face_box(const FaceBox& box, int frame_width, int frame_height) const;
+
 private:
     /**
      * @brief Evaluates zero-allocation rolling 3-second history for micro-motion and blink verification.
      */
     bool evaluate_liveness(double current_pitch, double current_yaw, float current_ear, bool& is_spoof_photo);
+
+    /**
+     * @brief Updates temporal persistence tracking for a candidate secondary face. Returns true if validated.
+     */
+    bool update_and_validate_secondary_track(const FaceBox& box, int frame_width, int frame_height, std::chrono::system_clock::time_point now);
+
+    /**
+     * @brief Prunes old or missing secondary face tracks.
+     */
+    void prune_secondary_tracks(std::chrono::system_clock::time_point now);
 
     Config config_;
     IFaceDetector& face_detector_;
@@ -66,6 +93,10 @@ private:
     std::array<PoseHistorySample, HISTORY_CAPACITY> pose_history_{};
     size_t history_head_ = 0;
     size_t history_count_ = 0;
+
+    // Temporal persistence tracks for secondary faces
+    std::vector<SecondaryFaceTrack> secondary_tracks_{};
+    size_t next_track_id_ = 1;
 };
 
 } // namespace blindside

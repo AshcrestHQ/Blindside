@@ -67,7 +67,6 @@ bool CameraCapture::is_opened() const {
 void CameraCapture::set_fps(double target_fps) {
     if (current_fps_.load() != target_fps) {
         current_fps_.store(target_fps);
-        pending_fps_change_.store(true);
     }
 }
 
@@ -104,19 +103,31 @@ bool CameraCapture::grab_frame(RawFrame& frame) {
 
 #if BLINDSIDE_HAS_OPENCV
     if (impl_->cap.isOpened()) {
-        if (pending_fps_change_.exchange(false)) {
-            impl_->cap.set(cv::CAP_PROP_FPS, current_fps_.load());
+        auto now = std::chrono::steady_clock::now();
+        double target_interval = 1.0 / current_fps_.load();
+        std::chrono::duration<double> elapsed = now - last_frame_time_;
+        
+        if (elapsed.count() < target_interval) {
+            // Buffer drain to prevent stale frames, without decoding/processing
+            if (!impl_->cap.grab()) {
+                std::cerr << "[CameraCapture] Hardware frame read failed or pipeline halted. Closing camera to recover..." << std::endl;
+                impl_->cap.release();
+                is_open_.store(false);
+                return false;
+            }
+            frame.buffer.clear();
+            return true; // Successfully skipped
         }
 
         cv::Mat cv_frame;
         if (impl_->cap.read(cv_frame) && !cv_frame.empty()) {
+            last_frame_time_ = std::chrono::steady_clock::now();
             frame.width = cv_frame.cols;
             frame.height = cv_frame.rows;
             size_t data_size = cv_frame.total() * cv_frame.elemSize();
             frame.buffer.assign(cv_frame.data, cv_frame.data + data_size);
             return true;
         } else {
-            // Camera read failed (e.g. disconnected or internal stream error)
             std::cerr << "[CameraCapture] Hardware frame read failed or pipeline halted. Closing camera to recover..." << std::endl;
             impl_->cap.release();
             is_open_.store(false);

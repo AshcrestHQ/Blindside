@@ -1,33 +1,31 @@
-# Blindside V3 — Release
+# Blindside V3.1.0 — Release Notes
 
-## What's new
-Blindside V3 is a complete rewrite of the initial prototype, transforming it from an experimental concept into a stable, demonstrable, local-first physical privacy daemon.
+## Overview
+Blindside V3.1.0 is the first field-tested, post-release iteration following the V3.0 milestone. This release focuses on diagnostic transparency, engine validation visibility, and camera pipeline stability across Linux and Windows desktop environments.
 
-## The big changes
-- We stripped out the hardcoded boundary boxes and unreliable heuristics.
-- Integrated a production-ready C++20 `cv::solvePnP` threat engine that accurately maps facial orientation.
-- Implemented a rolling 3-second liveness hysteresis window to eliminate erratic jitter.
+## What's New in V3.1.0
 
-## Cross-platform support
-- **Windows**: Native support for redaction overlays and `LockWorkStation`, with deployment-ready packaging for all required dependencies (OpenCV).
-- **Linux X11**: Native support for redaction overlays covering active windows.
-- **Linux Wayland**: Added as a graceful fallback mode (triggering session locks) since global compositing restrictions block third-party redaction overlays.
+### Diagnostic Observability
+- **Explicit Raw vs Validated Detections**: Standard output diagnostics now clearly distinguish raw YuNet candidate detections from validated primary and secondary faces.
+- **Detailed Face Count Summaries**: Diagnostics output comprehensive breakdowns per frame, detailing total validated faces, primary user presence, secondary candidate count, and raw detection totals.
+- **Transparent Liveness Reporting**: Diagnostic logs explicitly report the active liveness verification status and note architectural bounds.
 
-## CV pipeline
-- Built around the OpenCV YuNet face detection model, offering high-speed performance at standard resolutions (640x480).
-- Hand-tuned 6D Pose Estimation logic that safely catches math degeneracies instead of crashing.
-- Zero-allocation runtime execution loop using a custom lock-free RingBuffer to handle image data.
+### Pipeline & Core Stability
+- **Camera Recovery Integration**: Preserves thread-safe non-busy-loop recovery for GStreamer and OpenCV camera capture streams.
+- **Zero-Allocation Runtime**: Retains high-performance C++20 RingBuffer frame management and 6D `cv::solvePnP` pose estimation.
+- **Hysteresis Privacy Triggers**: Preserves strict 1.0-second gaze hysteresis and multi-platform defense responses (targeted window blur & desktop session lock).
 
-## Privacy
-- Removed all network telemetry.
-- Replaced ambiguous logging with a structured local security event ledger (`blindside_threats.log`).
-- Ensures absolute privacy by refusing to persist any screenshots, frames, or biometric templates to disk.
+---
 
-## Testing
-- Added regression tests specifically targeting transient occlusion drops and edge-case pose geometry.
-- Verified pipeline safety with model-backed integration runs in CI.
+## Known Limitations
 
-## Known limitations
-- Wayland environments cannot utilize targeted redaction overlays and will fall back to system locking.
-- Heavy occlusions (large masks, dark sunglasses) or extreme low-light environments will impair YuNet's ability to detect landmarks, blinding the daemon.
-- Local physical hardware tests are actively pending final validation for both X11 runtime and Windows runtime environments.
+As part of our commitment to transparent open-source engineering, the following limitations are actively documented for V3.1.0:
+
+1. **Rendered / Displayed Face False Positives**:
+   - Faces rendered within digital images, posters, or web content (e.g., Pinterest boards, advertisements, video thumbnails) can currently be misclassified by the detection layer as physical secondary faces. Geometry bounds alone do not distinguish physical human faces from rendered image content.
+
+2. **Global Liveness Evaluation**:
+   - Liveness verification in V3.1.0 is evaluated over global secondary gaze history rather than independently established per individual secondary face track. Dedicated per-track liveness verification architecture is planned for V3.2.
+
+3. **Wayland Display Server Protocol Limits**:
+   - Pure Wayland compositors restrict global pixel access and custom window redaction overlays. Blindside gracefully falls back to system session locks (`loginctl`) on Wayland.

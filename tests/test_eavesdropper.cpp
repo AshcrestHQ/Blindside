@@ -140,11 +140,98 @@ void test_liveness_timestamp_expiration() {
     std::cout << "[TEST PASSED] Liveness 1-frame drop survival regression test." << std::endl;
 }
 
+class TwoPeopleMockFaceDetector : public blindside::IFaceDetector {
+public:
+    bool initialize(const std::string& model_path = "") override { (void)model_path; return true; }
+    std::vector<blindside::FaceBox> detect(const blindside::RawFrame& frame) override {
+        (void)frame;
+        std::vector<blindside::FaceBox> res;
+
+        // Primary User
+        blindside::FaceBox primary;
+        primary.x = 300; primary.y = 200; primary.width = 100; primary.height = 100; primary.confidence = 0.95f;
+        primary.landmarks[0] = {330, 230}; primary.landmarks[1] = {370, 230};
+        primary.landmarks[2] = {350, 250}; primary.landmarks[3] = {330, 270}; primary.landmarks[4] = {370, 270};
+        res.push_back(primary);
+
+        // Genuine Eavesdropper
+        blindside::FaceBox secondary;
+        secondary.x = 50; secondary.y = 50; secondary.width = 90; secondary.height = 90; secondary.confidence = 0.88f;
+        secondary.landmarks[0] = {75, 75}; secondary.landmarks[1] = {115, 75};
+        secondary.landmarks[2] = {95, 95}; secondary.landmarks[3] = {75, 115}; secondary.landmarks[4] = {115, 115};
+        res.push_back(secondary);
+
+        return res;
+    }
+    bool is_initialized() const override { return true; }
+};
+
+void test_two_real_people() {
+    blindside::Config config;
+    TwoPeopleMockFaceDetector detector;
+    blindside::PoseEstimator estimator(config);
+    detector.initialize();
+
+    blindside::EavesdropperDetector eavesdropper(config, detector, estimator);
+
+    blindside::RawFrame frame;
+    frame.width = 640;
+    frame.height = 480;
+
+    auto res = eavesdropper.process_frame(frame);
+    assert(res.faces.size() == 2);
+    assert(res.primary_user_present == true);
+
+    bool found_primary = false;
+    bool found_eavesdropper = false;
+    for (const auto& f : res.faces) {
+        if (f.is_primary_user) found_primary = true;
+        if (f.is_eavesdropper) found_eavesdropper = true;
+    }
+    assert(found_primary && found_eavesdropper);
+    (void)found_primary;
+    (void)found_eavesdropper;
+
+    std::cout << "[TEST PASSED] Two genuinely visible people produces 2 validated faces test." << std::endl;
+}
+
+class EmptyFrameMockFaceDetector : public blindside::IFaceDetector {
+public:
+    bool initialize(const std::string& model_path = "") override { (void)model_path; return true; }
+    std::vector<blindside::FaceBox> detect(const blindside::RawFrame& frame) override {
+        (void)frame;
+        return {}; // 0 faces detected when user leaves frame
+    }
+    bool is_initialized() const override { return true; }
+};
+
+void test_zero_face_user_leaves() {
+    blindside::Config config;
+    EmptyFrameMockFaceDetector detector;
+    blindside::PoseEstimator estimator(config);
+    detector.initialize();
+
+    blindside::EavesdropperDetector eavesdropper(config, detector, estimator);
+
+    blindside::RawFrame frame;
+    frame.width = 640;
+    frame.height = 480;
+
+    auto res = eavesdropper.process_frame(frame);
+    assert(res.faces.empty());
+    assert(res.primary_user_present == false);
+    assert(res.secondary_gaze_detected == false);
+
+    std::cout << "[TEST PASSED] User leaves frame 0-face behavior test." << std::endl;
+}
+
 int main() {
     test_primary_user_calibration();
     test_eavesdropper_gaze_hysteresis();
     test_invalid_pose_handling();
     test_liveness_timestamp_expiration();
+    test_two_real_people();
+    test_zero_face_user_leaves();
     std::cout << "All EavesdropperDetector unit tests passed successfully!\n";
     return 0;
 }

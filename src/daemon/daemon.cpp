@@ -72,16 +72,40 @@ void Daemon::stop() {
 }
 
 void Daemon::capture_loop(std::stop_token stop_token) {
+    int backoff_ms = 1000;
     while (!stop_token.stop_requested() && running_.load()) {
         RawFrame frame;
         if (camera_.grab_frame(frame)) {
-            frame_buffer_.push(std::move(frame));
+            backoff_ms = 1000; // Reset backoff
+            if (!frame.buffer.empty()) {
+                frame_buffer_.push(std::move(frame));
+            }
         } else {
             // Camera failure (or unavailable). Wait and attempt recovery.
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            // Sleep in small increments to remain responsive to stop signals
+            int waited = 0;
+            while (waited < backoff_ms && !stop_token.stop_requested() && running_.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                waited += 100;
+            }
+
             if (!stop_token.stop_requested() && running_.load()) {
                 std::cout << "[Daemon] Attempting camera recovery..." << std::endl;
-                camera_.open();
+                if (camera_.open()) {
+                    RawFrame test_frame;
+                    if (camera_.grab_frame(test_frame)) {
+                        std::cout << "[Daemon] Camera recovered successfully." << std::endl;
+                        backoff_ms = 1000;
+                        if (!test_frame.buffer.empty()) {
+                            frame_buffer_.push(std::move(test_frame));
+                        }
+                    } else {
+                        std::cout << "[Daemon] Camera opened but failed to capture. Backing off..." << std::endl;
+                        backoff_ms = std::min(backoff_ms * 2, 16000); // Max 16s
+                    }
+                } else {
+                    backoff_ms = std::min(backoff_ms * 2, 16000);
+                }
             }
         }
     }

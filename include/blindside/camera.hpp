@@ -44,11 +44,11 @@ private:
     Config config_;
     std::atomic<bool> is_open_ = false;
     std::atomic<double> current_fps_ = 30.0;
-    std::atomic<bool> pending_fps_change_ = false;
     uint64_t frame_counter_ = 0;
     bool synthetic_mode_ = false;
     bool synthetic_eavesdropper_present_ = false;
     double synthetic_eavesdropper_yaw_ = 0.0;
+    std::chrono::steady_clock::time_point last_frame_time_;
 
     struct Impl;
     std::unique_ptr<Impl> impl_;

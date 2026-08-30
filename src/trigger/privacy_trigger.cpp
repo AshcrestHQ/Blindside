@@ -40,8 +40,13 @@ void PrivacyTriggerManager::trigger_targeted_blur(const WindowRect& rect) {
     if (targeted_blur_active_) return;
     targeted_blur_active_ = true;
 
-    std::cout << "\033[1;36m[TARGETED PRIVACY OVERLAY] Redacting Active Workspace Window [" 
-              << rect.x << ", " << rect.y << ", " << rect.width << "x" << rect.height << "]\033[0m" << std::endl;
+    auto diag = platform_manager_->get_diagnostics();
+    if (diag.supports_native_redaction) {
+        std::cout << "\033[1;36m[TARGETED PRIVACY OVERLAY] Redacting Active Workspace Window [" 
+                  << rect.x << ", " << rect.y << ", " << rect.width << "x" << rect.height << "]\033[0m" << std::endl;
+    } else {
+        std::cout << "\033[1;33m[TARGETED PRIVACY OVERLAY] Requested, but unsupported on this platform. Falling back.\033[0m" << std::endl;
+    }
 
     platform_manager_->trigger_targeted_blur(rect);
 }

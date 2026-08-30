@@ -1,7 +1,6 @@
 #include "blindside/eavesdropper_detector.hpp"
 #include <iostream>
 #include <cmath>
-#include <numeric>
 
 namespace blindside {
 
@@ -130,45 +129,179 @@ bool EavesdropperDetector::evaluate_liveness(double current_pitch, double curren
     return true;
 }
 
+bool EavesdropperDetector::is_valid_face_box(const FaceBox& box, int frame_width, int frame_height) const {
+    // 1. Basic physical sanity: positive width and height
+    if (box.width <= 0.0f || box.height <= 0.0f) {
+        return false;
+    }
+
+    // 2. Aspect ratio sanity (width / height)
+    float aspect_ratio = box.width / box.height;
+    if (aspect_ratio < 0.20f || aspect_ratio > 3.0f) {
+        return false;
+    }
+
+    // 3. Frame boundary sanity check (must overlap with frame)
+    float fw = static_cast<float>(frame_width > 0 ? frame_width : 640);
+    float fh = static_cast<float>(frame_height > 0 ? frame_height : 480);
+    if (box.x + box.width < 0.0f || box.y + box.height < 0.0f || box.x > fw || box.y > fh) {
+        return false;
+    }
+
+    return true;
+}
+
+bool EavesdropperDetector::update_and_validate_secondary_track(const FaceBox& box, int frame_width, int frame_height, std::chrono::system_clock::time_point now) {
+    float fw = static_cast<float>(frame_width > 0 ? frame_width : 640);
+    float fh = static_cast<float>(frame_height > 0 ? frame_height : 480);
+
+    float norm_cx = box.center_x() / fw;
+    float norm_cy = box.center_y() / fh;
+    float norm_w = box.width / fw;
+    float norm_h = box.height / fh;
+
+    SecondaryFaceTrack* match = nullptr;
+    float min_dist = 1e9f;
+
+    for (auto& track : secondary_tracks_) {
+        float dx = norm_cx - track.norm_center_x;
+        float dy = norm_cy - track.norm_center_y;
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist <= 0.15f && dist < min_dist) {
+            min_dist = dist;
+            match = &track;
+        }
+    }
+
+    if (match) {
+        match->norm_center_x = norm_cx;
+        match->norm_center_y = norm_cy;
+        match->norm_width = norm_w;
+        match->norm_height = norm_h;
+        match->last_seen = now;
+        match->hit_count++;
+        match->miss_count = 0;
+        return true;
+    } else {
+        SecondaryFaceTrack new_track;
+        new_track.id = next_track_id_++;
+        new_track.norm_center_x = norm_cx;
+        new_track.norm_center_y = norm_cy;
+        new_track.norm_width = norm_w;
+        new_track.norm_height = norm_h;
+        new_track.first_seen = now;
+        new_track.last_seen = now;
+        new_track.hit_count = 1;
+        new_track.miss_count = 0;
+        secondary_tracks_.push_back(new_track);
+        return true;
+    }
+}
+
+void EavesdropperDetector::prune_secondary_tracks(std::chrono::system_clock::time_point now) {
+    for (auto it = secondary_tracks_.begin(); it != secondary_tracks_.end();) {
+        std::chrono::duration<double> dt = now - it->last_seen;
+        if (it->miss_count > 5 || dt.count() > 1.0) {
+            it = secondary_tracks_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
     FrameResult result;
     result.frame_id = frame.frame_id;
     result.timestamp = frame.timestamp;
+    auto now = std::chrono::system_clock::now();
 
     auto raw_faces = face_detector_.detect(frame);
+    
+    // 1. Raw YuNet Detections Diagnostic
+    std::cout << "[DIAGNOSTICS] Raw YuNet faces detected: " << raw_faces.size() << std::endl;
+    for (size_t i = 0; i < raw_faces.size(); ++i) {
+        std::cout << "  [RAW DETECTION " << i << "] Box: [x=" << raw_faces[i].x << ", y=" << raw_faces[i].y 
+                  << ", w=" << raw_faces[i].width << ", h=" << raw_faces[i].height 
+                  << "] confidence=" << raw_faces[i].confidence << std::endl;
+    }
+
     if (raw_faces.empty()) {
         reset_trigger_state();
+        prune_secondary_tracks(now);
+        std::cout << "[DIAGNOSTICS] Validated Primary Face: None (User absent)" << std::endl;
+        std::cout << "[DIAGNOSTICS] Face Count Summary: Total Validated = 0 | Primary = 0 | Secondary = 0 (Raw YuNet Detections = 0)" << std::endl;
+        std::cout << "[DIAGNOSTICS] Liveness Status: INACTIVE (No faces detected)" << std::endl;
         return result;
     }
 
-    float norm_w = static_cast<float>(frame.width > 0 ? frame.width : 640);
-    float norm_h = static_cast<float>(frame.height > 0 ? frame.height : 480);
+    int fw = frame.width > 0 ? frame.width : 640;
+    int fh = frame.height > 0 ? frame.height : 480;
+    float norm_w = static_cast<float>(fw);
+    float norm_h = static_cast<float>(fh);
     float cal_cx = primary_calibration_box_.center_x();
     float cal_cy = primary_calibration_box_.center_y();
 
-    bool found_secondary_gaze = false;
-    bool secondary_liveness_pass = false;
+    // Pre-filter raw detections via basic bounding box sanity
+    std::vector<FaceBox> valid_boxes;
+    for (const auto& box : raw_faces) {
+        if (is_valid_face_box(box, fw, fh)) {
+            valid_boxes.push_back(box);
+        }
+    }
 
-    for (const auto& raw_face : raw_faces) {
-        FaceDetectionResult face_res;
-        face_res.box = raw_face;
-        face_res.pose = pose_estimator_.estimate_pose(raw_face, frame);
-        
-        // Skip invalid poses from degenerate geometry / failure
-        if (!face_res.pose.valid) continue;
+    if (valid_boxes.empty()) {
+        reset_trigger_state();
+        prune_secondary_tracks(now);
+        std::cout << "[DIAGNOSTICS] Validated Primary Face: None (Degenerate face boxes filtered)" << std::endl;
+        std::cout << "[DIAGNOSTICS] Face Count Summary: Total Validated = 0 | Primary = 0 | Secondary = 0 (Raw YuNet Detections = " << raw_faces.size() << ")" << std::endl;
+        std::cout << "[DIAGNOSTICS] Liveness Status: INACTIVE (All raw boxes failed sanity checks)" << std::endl;
+        return result;
+    }
 
-        face_res.ear = PoseEstimator::compute_ear(raw_face);
+    // Identify Primary User box robustly among valid candidates
+    size_t primary_idx = static_cast<size_t>(-1);
+    float min_dist_to_cal = 1e9f;
 
-        float norm_cx = raw_face.center_x() / norm_w;
-        float norm_cy = raw_face.center_y() / norm_h;
+    for (size_t i = 0; i < valid_boxes.size(); ++i) {
+        float norm_cx = valid_boxes[i].center_x() / norm_w;
+        float norm_cy = valid_boxes[i].center_y() / norm_h;
         float dx = norm_cx - cal_cx;
         float dy = norm_cy - cal_cy;
         float dist = std::sqrt(dx * dx + dy * dy);
 
-        if (dist <= config_.primary_box_tolerance) {
+        if (dist <= config_.primary_box_tolerance && dist < min_dist_to_cal) {
+            min_dist_to_cal = dist;
+            primary_idx = i;
+        }
+    }
+
+    // Mark miss_count on existing secondary tracks before evaluating current frame
+    for (auto& track : secondary_tracks_) {
+        track.miss_count++;
+    }
+
+    bool found_secondary_gaze = false;
+    bool secondary_liveness_pass = false;
+
+    // Process primary user first, then secondary candidate faces with temporal persistence
+    for (size_t i = 0; i < valid_boxes.size(); ++i) {
+        const auto& box = valid_boxes[i];
+        FaceDetectionResult face_res;
+        face_res.box = box;
+        face_res.pose = pose_estimator_.estimate_pose(box, frame);
+        
+        if (!face_res.pose.valid) continue;
+        face_res.ear = PoseEstimator::compute_ear(box);
+
+        if (i == primary_idx) {
             face_res.is_primary_user = true;
             result.primary_user_present = true;
+            result.faces.push_back(face_res);
         } else {
+            // Secondary candidate: must pass temporal persistence tracking
+            bool validated_track = update_and_validate_secondary_track(box, fw, fh, now);
+            if (!validated_track) continue;
+
             face_res.is_eavesdropper = true;
             if (face_res.pose.is_looking_at_screen) {
                 found_secondary_gaze = true;
@@ -180,15 +313,49 @@ FrameResult EavesdropperDetector::process_frame(const RawFrame& frame) {
                     secondary_liveness_pass = true;
                 }
             }
+            result.faces.push_back(face_res);
         }
-        result.faces.push_back(face_res);
     }
+
+    prune_secondary_tracks(now);
 
     result.secondary_gaze_detected = found_secondary_gaze;
     result.secondary_liveness_verified = secondary_liveness_pass;
 
+    // 2. Log Validated Primary Face Diagnostic
+    if (result.primary_user_present && primary_idx < valid_boxes.size()) {
+        const auto& prim = valid_boxes[primary_idx];
+        std::cout << "[DIAGNOSTICS] Validated Primary Face: [x=" << prim.x << ", y=" << prim.y 
+                  << ", w=" << prim.width << ", h=" << prim.height << "]" << std::endl;
+    } else {
+        std::cout << "[DIAGNOSTICS] Validated Primary Face: None (User absent or outside calibration region)" << std::endl;
+    }
+
+    // 3. Log Validated Secondary Candidates Diagnostic
+    size_t secondary_count = 0;
+    for (size_t i = 0; i < result.faces.size(); ++i) {
+        if (result.faces[i].is_eavesdropper) {
+            secondary_count++;
+            std::cout << "  [VALIDATED SECONDARY CANDIDATE " << (secondary_count - 1) << "] Box: [x=" 
+                      << result.faces[i].box.x << ", y=" << result.faces[i].box.y 
+                      << ", w=" << result.faces[i].box.width << ", h=" << result.faces[i].box.height 
+                      << "] gaze_at_screen=" << (result.faces[i].pose.is_looking_at_screen ? "true" : "false") << std::endl;
+        }
+    }
+
+    // 4. Log Final Physical-Face / Eavesdropper Summary
+    std::cout << "[DIAGNOSTICS] Face Count Summary: Total Validated = " << result.faces.size() 
+              << " | Primary = " << (result.primary_user_present ? 1 : 0)
+              << " | Secondary Candidates = " << secondary_count 
+              << " (Raw YuNet Detections = " << raw_faces.size() << ")" << std::endl;
+
+    // 5. Log Honest Liveness Architecture Limitation
+    std::cout << "[DIAGNOSTICS] Liveness Status: GLOBAL_EVALUATED [Secondary gaze=" 
+              << (found_secondary_gaze ? "detected" : "none")
+              << ", liveness_pass=" << (secondary_liveness_pass ? "true" : "false")
+              << "] (Note: Independent per-secondary-track liveness evaluation is pending V3.2 architecture refactor)" << std::endl;
+
     // Hysteresis Filter (> 1.0 second threshold)
-    auto now = std::chrono::system_clock::now();
     if (found_secondary_gaze && secondary_liveness_pass) {
         if (!secondary_gaze_active_) {
             secondary_gaze_active_ = true;
