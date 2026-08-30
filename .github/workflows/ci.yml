@@ -13,19 +13,25 @@ jobs:
   build_linux:
     name: Linux X11 Build & Tests
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:26.04
     steps:
+      - name: Install git for checkout
+        run: apt-get update && apt-get install -y git
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             cmake \
             ninja-build \
             libopencv-dev \
             libx11-dev \
-            libxext-dev
+            libxext-dev \
+            curl
 
       - name: Download test fixture (YuNet model)
         run: |
@@ -54,7 +60,7 @@ jobs:
           Requirements:
           - Linux x64 (X11 or Wayland)
           - OpenCV and X11 libraries:
-            sudo apt-get install libopencv-core4.0 libopencv-videoio4.0 libopencv-objdetect4.0 libopencv-imgproc4.0 libopencv-calib3d4.0
+            sudo apt-get install libopencv-core4.10 libopencv-videoio4.10 libopencv-objdetect4.10 libopencv-imgproc4.10 libopencv-calib3d4.10
           - webcam for live detection
           
           Run:
