@@ -1,5 +1,7 @@
 # Blindside V3.1.0 — Release Notes
 
+> For complete release history and ongoing V4 architectural development, see [../RELEASE_NOTES.md](../RELEASE_NOTES.md).
+
 ## Overview
 Blindside V3.1.0 is the first field-tested, post-release iteration following the V3.0 milestone. This release focuses on diagnostic transparency, engine validation visibility, and camera pipeline stability across Linux and Windows desktop environments.
 
