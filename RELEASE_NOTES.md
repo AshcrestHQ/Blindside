@@ -2,9 +2,9 @@
 
 ---
 
-## Blindside V4 — Architecture & Platform Hardening (In Development / Unreleased)
+## Blindside V4.0.0 — Platform Hardening & Architecture Release (2026-10-04)
 
-> **Release Status**: In active development. The current formal release baseline remains **V3.1.0**.
+> **Release Status**: Formal Release.
 
 The V4 generational engineering cycle establishes formal architectural boundaries separating Face Detection, Multi-Face Tracking, Liveness Verification, Stateless Threat Assessment, and Platform Response Management.
 
