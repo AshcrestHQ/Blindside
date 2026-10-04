@@ -38,3 +38,7 @@ models/*.onnx
 # Artifacts
 Blindside-V3-Linux-x64/
 Blindside-V3-Linux-x64.tar.gz
+
+# Python artifacts (reference tooling)
+__pycache__/
+*.pyc

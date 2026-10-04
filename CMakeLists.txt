@@ -119,3 +119,7 @@ add_test(NAME test_pipeline COMMAND test_pipeline)
 add_executable(test_camera_failure tests/test_camera_failure.cpp)
 target_link_libraries(test_camera_failure PRIVATE blindside_lib)
 add_test(NAME test_camera_failure COMMAND test_camera_failure)
+
+add_executable(test_platform tests/test_platform.cpp)
+target_link_libraries(test_platform PRIVATE blindside_lib)
+add_test(NAME test_platform COMMAND test_platform)

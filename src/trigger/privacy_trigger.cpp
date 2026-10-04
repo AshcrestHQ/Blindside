@@ -37,15 +37,15 @@ WindowRect PrivacyTriggerManager::get_active_window_geometry() {
 }
 
 void PrivacyTriggerManager::trigger_targeted_blur(const WindowRect& rect) {
-    if (targeted_blur_active_) return;
-    targeted_blur_active_ = true;
-
-    auto diag = platform_manager_->get_diagnostics();
-    if (diag.supports_native_redaction) {
-        std::cout << "\033[1;36m[TARGETED PRIVACY OVERLAY] Redacting Active Workspace Window [" 
-                  << rect.x << ", " << rect.y << ", " << rect.width << "x" << rect.height << "]\033[0m" << std::endl;
-    } else {
-        std::cout << "\033[1;33m[TARGETED PRIVACY OVERLAY] Requested, but unsupported on this platform. Falling back.\033[0m" << std::endl;
+    if (!targeted_blur_active_) {
+        targeted_blur_active_ = true;
+        auto diag = platform_manager_->get_diagnostics();
+        if (diag.supports_native_redaction) {
+            std::cout << "\033[1;36m[TARGETED PRIVACY OVERLAY] Redacting Active Workspace Window ["
+                      << rect.x << ", " << rect.y << ", " << rect.width << "x" << rect.height << "]\033[0m" << std::endl;
+        } else {
+            std::cout << "\033[1;33m[TARGETED PRIVACY OVERLAY] Requested, but unsupported on this platform. Falling back.\033[0m" << std::endl;
+        }
     }
 
     platform_manager_->trigger_targeted_blur(rect);
@@ -113,10 +113,19 @@ void PrivacyTriggerManager::execute_triggers(const FrameResult& result) {
     } else {
         clear_alerts();
     }
+    pump_events();
 }
 
 PlatformDiagnostics PrivacyTriggerManager::get_diagnostics() const {
     return platform_manager_->get_diagnostics();
+}
+
+PlatformCapabilities PrivacyTriggerManager::get_capabilities() const {
+    return platform_manager_->get_capabilities();
+}
+
+void PrivacyTriggerManager::pump_events() {
+    platform_manager_->pump_events();
 }
 
 } // namespace blindside

@@ -16,13 +16,27 @@ public:
         return true;
     }
 
+    PlatformCapabilities get_capabilities() const override {
+        PlatformCapabilities caps;
+        caps.screen_redaction = false;       // Wayland protocol forbids arbitrary surface positioning
+        caps.targeted_blur = false;          // No compositor blur protocol
+        caps.session_lock = true;           // loginctl / dbus org.gnome.ScreenSaver
+        caps.click_through_overlay = false; // Overlays unsupported
+        caps.multi_monitor_aware = false;   // Protocol restricted
+        return caps;
+    }
+
     PlatformDiagnostics get_diagnostics() const override {
         PlatformDiagnostics diag;
         diag.os_name = "Linux (Wayland)";
         diag.supports_native_redaction = false; // Wayland restricts absolute window positioning overlays
-        diag.supports_screen_lock = true;       // via loginctl / dbus
-        diag.supports_desktop_notifications = true; // via notify-send
+        diag.supports_targeted_blur = false;
+        diag.supports_screen_lock = true;       // Attempted via loginctl / dbus (availability subject to host session manager)
+        diag.supports_desktop_notifications = true; // Attempted via notify-send
+        diag.supports_click_through = false;
         diag.monitor_count = 1; // Difficult to poll without specific compositor protocols
+        diag.redaction_mode = "None (Protocol Restricted)";
+        diag.capabilities = get_capabilities();
         return diag;
     }
 

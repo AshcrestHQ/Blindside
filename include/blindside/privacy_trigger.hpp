@@ -57,6 +57,16 @@ public:
      */
     PlatformDiagnostics get_diagnostics() const;
 
+    /**
+     * @brief Gets discrete platform capabilities.
+     */
+    PlatformCapabilities get_capabilities() const;
+
+    /**
+     * @brief Pushes platform event loop forward without blocking.
+     */
+    void pump_events();
+
     bool is_hard_defense_active() const { return hard_defense_active_; }
     bool is_soft_alert_active() const { return soft_alert_active_; }
     bool is_targeted_blur_active() const { return targeted_blur_active_; }

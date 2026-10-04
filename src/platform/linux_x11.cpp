@@ -27,16 +27,28 @@ public:
         return true;
     }
 
+    PlatformCapabilities get_capabilities() const override {
+        PlatformCapabilities caps;
+        caps.screen_redaction = (display_ != nullptr);
+        caps.targeted_blur = false; // X11 override-redirect window provides opaque redaction, not compositor blur
+        caps.session_lock = true;   // via loginctl/xset/dbus-screensaver
+        caps.click_through_overlay = false; // Standard X11 override-redirect blocks pointer events without XShape
+        caps.multi_monitor_aware = true;    // X11 ScreenCount / multi-head coordinates
+        return caps;
+    }
+
     PlatformDiagnostics get_diagnostics() const override {
         PlatformDiagnostics diag;
         diag.os_name = "Linux (X11)";
         diag.supports_native_redaction = (display_ != nullptr);
+        diag.supports_targeted_blur = false;
         diag.supports_screen_lock = true;
         diag.supports_desktop_notifications = true;
-        
-        if (display_) {
-            diag.monitor_count = ScreenCount(display_);
-        }
+        diag.supports_click_through = false;
+        // Note: ScreenCount() reports X11 screens; modern multi-head RandR setups map displays into Screen 0
+        diag.monitor_count = display_ ? ScreenCount(display_) : 1;
+        diag.redaction_mode = "OpaqueRedaction (X11 Override-Redirect)";
+        diag.capabilities = get_capabilities();
         return diag;
     }
 
@@ -74,6 +86,8 @@ public:
 
     void trigger_targeted_blur(const WindowRect& rect) override {
         if (!display_) return;
+        if (rect.width <= 0 || rect.height <= 0) return;
+
         if (overlay_win_ == 0) {
             int screen = DefaultScreen(display_);
             Window root = RootWindow(display_, screen);
@@ -92,8 +106,23 @@ public:
             if (overlay_win_) {
                 XMapRaised(display_, overlay_win_);
                 XFlush(display_);
+                last_rect_ = rect;
+            }
+        } else {
+            // Idempotent repositioning if geometry changed
+            if (rect.x != last_rect_.x || rect.y != last_rect_.y ||
+                rect.width != last_rect_.width || rect.height != last_rect_.height) {
+                XMoveResizeWindow(display_, overlay_win_,
+                                  rect.x, rect.y,
+                                  static_cast<unsigned int>(rect.width),
+                                  static_cast<unsigned int>(rect.height));
+                XRaiseWindow(display_, overlay_win_);
+                XFlush(display_);
+                last_rect_ = rect;
             }
         }
+
+        pump_events();
     }
 
     void trigger_soft_alert(const std::string& message) override {
@@ -108,15 +137,27 @@ public:
 
     void clear_alerts() override {
         if (display_ && overlay_win_ != 0) {
+            XUnmapWindow(display_, overlay_win_);
             XDestroyWindow(display_, overlay_win_);
             overlay_win_ = 0;
+            last_rect_ = WindowRect{};
             XFlush(display_);
+            pump_events();
+        }
+    }
+
+    void pump_events() override {
+        if (!display_) return;
+        while (XPending(display_) > 0) {
+            XEvent ev;
+            XNextEvent(display_, &ev);
         }
     }
 
 private:
     Display* display_ = nullptr;
     Window overlay_win_ = 0;
+    WindowRect last_rect_{};
 };
 
 std::unique_ptr<PlatformManager> PlatformManager::create() {
